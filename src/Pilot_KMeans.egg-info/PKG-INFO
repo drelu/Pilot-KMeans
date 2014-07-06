@@ -1,0 +1,16 @@
+Metadata-Version: 1.1
+Name: Pilot-KMeans
+Version: -1
+Summary: A Pilot-based KMeans Implementation
+Home-page: https://github.com/drelu/kmeans
+Author: Andre Luckow, et al.
+Author-email: aluckow@cct.lsu.edu
+License: UNKNOWN
+Description: UNKNOWN
+Platform: Unix
+Platform: Linux
+Platform: Mac OS
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Programming Language :: Python
+Classifier: Environment :: Console
+Classifier: Topic :: Utilities
