@@ -1,0 +1,9 @@
+.Rproj.user
+.pydevproject
+.project
+work
+*.pyc
+build
+dist
+VERSION
+

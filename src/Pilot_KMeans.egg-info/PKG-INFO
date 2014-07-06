@@ -1,8 +1,8 @@
 Metadata-Version: 1.1
 Name: Pilot-KMeans
-Version: -1
+Version: 0.01
 Summary: A Pilot-based KMeans Implementation
-Home-page: https://github.com/drelu/kmeans
+Home-page: https://github.com/drelu/Pilot-KMeans
 Author: Andre Luckow, et al.
 Author-email: aluckow@cct.lsu.edu
 License: UNKNOWN

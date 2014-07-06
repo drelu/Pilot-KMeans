@@ -1,2 +1,2 @@
+inmem
 kmeans
-pilot

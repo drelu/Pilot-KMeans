@@ -11,9 +11,9 @@ import redis
 import threading
 import numpy as np
 import itertools
-import pilot
-from pilot.inmem.dataunit import DistributedInMemoryDataUnit
-
+#import pilot
+from inmem.dataunit import DistributedInMemoryDataUnit
+from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
 
 class KMeans(object):
 
@@ -39,6 +39,17 @@ class KMeans(object):
         return new_center 
     
     
+def start_pilot(pilot_compute_description=None):
+    COORDINATION_URL = "redis://localhost:6379"
+    pilot_compute_service = PilotComputeService(coordination_url=COORDINATION_URL)
+    if pilot_compute_description==None:
+        pilot_compute_description = {
+                             "service_url": 'fork://localhost',
+                             "number_of_processes": 2,                             
+                             "working_directory": os.getcwd() + "/work/",
+                             }    
+    pilot = pilot_compute_service.create_pilot(pilot_compute_description=pilot_compute_description)
+    return pilot
 
     
 
@@ -50,7 +61,8 @@ if __name__ == '__main__':
     points = f.readlines()
     f.close()
     
-    du_points = DistributedInMemoryDataUnit("Points")
+    pilot=start_pilot()
+    du_points = DistributedInMemoryDataUnit("Points", pilot=pilot)
     du_points.load(points)
     
     f = open("centers.csv")
@@ -61,11 +73,10 @@ if __name__ == '__main__':
         
     for iteration in range(0,5):
         
-        best = du_points.map(KMeans.closestPoint, du_centers, 0, len(points))
-                
+        #best = du_points.map(KMeans.closestPoint, du_centers, 0, len(points))
+        best = du_points.map_pilot(KMeans.closestPoint, du_centers)
         # sort points after centroid
         best.sort(key=lambda tup: tup[0])
-        print str(best)
         
         dus = {}
         for key, group in itertools.groupby(best, lambda x: x[0]):
