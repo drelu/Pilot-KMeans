@@ -62,7 +62,7 @@ setup(name='Pilot-KMeans',
                     ],
       platforms = ('Unix', 'Linux', 'Mac OS'),
       package_dir = {'':'src'},
-      packages=['kmeans', 'inmem'],
+      packages=['kmeans', 'distributed_inmem'],
       include_package_data=True,
       # data files for easy_install
       data_files = [('', ['README.md', 'README.md']), 
