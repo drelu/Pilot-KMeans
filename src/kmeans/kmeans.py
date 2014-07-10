@@ -57,6 +57,7 @@ def start_pilot(pilot_compute_description=None):
 
 ###################################################################################################
 if __name__ == '__main__':
+    
     DistributedInMemoryDataUnit.flushdb()
     
     f = open("data_20points.csv")
@@ -75,7 +76,7 @@ if __name__ == '__main__':
         
     for iteration in range(0,5):
         
-        output_dus = du_points.map_pilot("KMeans.closestPoint", du_centers)
+        output_dus = du_points.map_pilot("KMeans.closestPoint", du_centers.name)
         
         new_centers = []
         for du in output_dus:
