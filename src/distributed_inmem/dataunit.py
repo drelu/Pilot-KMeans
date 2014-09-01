@@ -17,12 +17,18 @@ logger.setLevel(logging.WARNING)
 #from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
  
    
+# 
+
 
 class DistributedInMemoryDataUnit():  
     """ In-Memory DU backed by Redis """
             
-    def __init__(self, name="test-dimdu", flushdb=False, pilot=None):
-        self.redis_connection_pool = redis.ConnectionPool(host="localhost", port=6379, password=None, db=0)
+    def __init__(self, name="test-dimdu",
+                 hostname="localhost" ,
+                 port=6379,
+                 flushdb=False, 
+                 pilot=None):
+        self.redis_connection_pool = redis.ConnectionPool(host=hostname, port=6379, password=None, db=0)
         self.redis_client = redis.Redis(connection_pool=self.redis_connection_pool)
         #self.redis_client_pubsub = self.redis_client.pubsub() # redis pubsub client       
         self.resource_lock = threading.RLock()
@@ -53,7 +59,12 @@ class DistributedInMemoryDataUnit():
         self.load(data)        
         
         
-    def map_pilot(self, function, args, partition_prefix="map-part"):        
+    def map_pilot(self, function, args, 
+                  partition_prefix="map-part",
+                  number_of_processes=1):        
+        """ Execute map function using a set of CUs on the Pilot 
+            TODO: add partitioning
+        """
         prefix = partition_prefix + "-" + str(uuid.uuid4())[:8]
         # start compute unit
         compute_unit_description = {
@@ -64,7 +75,7 @@ class DistributedInMemoryDataUnit():
                           "--map_function", function, 
                           "--args",  args, 
                           "--output_du_prefix", prefix],
-            "number_of_processes": 1,
+            "number_of_processes": number_of_processes,
             "output": "stdout.txt",
             "error": "stderr.txt", 
         }
@@ -74,7 +85,14 @@ class DistributedInMemoryDataUnit():
         return dus
     
         
-    def reduce_pilot(self, function, partition_prefix="reduce-part"):   
+    def reduce_pilot(self, function, 
+                     partition_prefix="reduce-part",
+                     number_of_processes=1
+                     ):  
+        """ Execute reduce function using a set of CUs on the Pilot 
+            TODO: add partitioning
+        """
+         
         prefix = partition_prefix + "-" + str(uuid.uuid4())[:8]
         # start compute unit
         compute_unit_description = {

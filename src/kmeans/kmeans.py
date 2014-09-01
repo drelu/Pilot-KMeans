@@ -107,11 +107,11 @@ if __name__ == '__main__':
         
     for iteration in range(0,NUM_ITERATIONS):
         iteration_start = time.time()
-        output_dus = du_points.map_pilot("KMeans.closestPoint", du_centers.name)
+        output_dus = du_points.map_pilot("KMeans.closestPoint", du_centers.name, number_of_processes=2)
         
         new_centers = []
         for du in output_dus:
-            result_du=du.reduce_pilot("KMeans.averagePoints")
+            result_du=du.reduce_pilot("KMeans.averagePoints", number_of_processes=2)
             new_centers.append(result_du)
                     
         du_centers = DistributedInMemoryDataUnit("Centers-%d"%(iteration+1)).merge(new_centers)
