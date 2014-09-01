@@ -13,14 +13,50 @@ import importlib
 import itertools
 import uuid
 logger = logging.getLogger('DistributedInMemoryDataUnit')
-logger.setLevel(logging.WARNING)
+logger.setLevel(logging.DEBUG)
 #from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
  
    
-# 
+class Future(object):
+    
+    
+    def __init__(self, pilot, compute_units, 
+                       output_collector,
+                       prefix):
+        #self.distributed_inmemory_dataunit=distributed_inmemory_dataunit
+        self.pilot=pilot
+        self.compute_units=compute_units
+        self.output_collector=output_collector
+        self.prefix=prefix
+        
+    def cancel(self):
+        """Attempt to cancel the call. If the call is currently being executed and cannot be 
+           cancelled then the method will return False, otherwise the call will be 
+           cancelled and the method will return True."""
+        for cu in self.compute_units:
+            cu.cancel()
+       
+
+    def get_state(self):
+        """ get state of current pilot-based processing, i.e. the map resp. reduce phase"""
+        pass
+    
+    
+    def result(self): 
+        """Return the value returned by the call. If the call hasn’t yet completed then this 
+           method will wait for the result """
+        logger.debug("Future: Wait for %d Compute Units"%(len(self.compute_units)))  
+        for cu in self.compute_units:
+            cu.wait()
+        
+        logger.debug("Future: Get output for %s: "%(self.prefix))
+        #dus = self.distributed_inmemory_dataunit._get_output_du(self.prefix)
+        result = self.output_collector(self.prefix)
+        return result
+       
 
 
-class DistributedInMemoryDataUnit():  
+class DistributedInMemoryDataUnit(object):  
     """ In-Memory DU backed by Redis """
             
     def __init__(self, name="test-dimdu",
@@ -61,33 +97,47 @@ class DistributedInMemoryDataUnit():
         
     def map_pilot(self, function, args, 
                   partition_prefix="map-part",
-                  number_of_processes=1):        
+                  number_of_compute_units=1,
+                  number_of_cores_per_compute_unit=1):        
         """ Execute map function using a set of CUs on the Pilot 
             TODO: add partitioning
         """
         prefix = partition_prefix + "-" + str(uuid.uuid4())[:8]
-        # start compute unit
-        compute_unit_description = {
-            "executable": "python",
-            "arguments": ["-m", "distributed_inmem.dataunit", 
-                          "-n", self.name,  
-                          "-m", "kmeans.kmeans", 
-                          "--map_function", function, 
-                          "--args",  args, 
-                          "--output_du_prefix", prefix],
-            "number_of_processes": number_of_processes,
-            "output": "stdout.txt",
-            "error": "stderr.txt", 
-        }
-        compute_unit = self.pilot.submit_compute_unit(compute_unit_description)
-        compute_unit.wait()
-        dus = self.__get_output_du(prefix)
-        return dus
+        number_of_lines_per_du=self.len/number_of_compute_units
+        if self.len%number_of_compute_units>0:
+            number_of_lines_per_du= number_of_lines_per_du + 1
+        partition_start = 0
+        cus=[]
+        for i in range(0, number_of_compute_units):
+            partition_end = partition_start + number_of_lines_per_du
+            logger.debug("CU %d:, Partition Start: %d, Partition End: %d"%(i,partition_start, partition_end))
+            # start compute unit
+            compute_unit_description = {
+                "executable": "python",
+                "arguments": ["-m", "distributed_inmem.dataunit", 
+                              "-n", self.name,  
+                              "-m", "kmeans.kmeans", 
+                              "--map_function", function, 
+                              "--partition_start", partition_start,
+                              "--partition_end", partition_end,
+                              "--args",  args, 
+                              "--output_du_prefix", prefix],
+                "number_of_processes": number_of_cores_per_compute_unit,
+                "output": "stdout.txt",
+                "error": "stderr.txt", 
+            }
+            compute_unit = self.pilot.submit_compute_unit(compute_unit_description)
+            cus.append(compute_unit)
+            partition_start = partition_end + 1
+        #compute_unit.wait()
+        
+        future = Future(self.pilot, cus, self._get_output_du, prefix)
+        return future
     
         
     def reduce_pilot(self, function, 
                      partition_prefix="reduce-part",
-                     number_of_processes=1
+                     number_of_cores_per_compute_unit=1
                      ):  
         """ Execute reduce function using a set of CUs on the Pilot 
             TODO: add partitioning
@@ -102,15 +152,15 @@ class DistributedInMemoryDataUnit():
                           "-m", "kmeans.kmeans", 
                           "--reduce_function", function,
                           "--output_du_prefix", prefix],
-            "number_of_processes": 1,
+            "number_of_processes": number_of_cores_per_compute_unit,
             "output": "stdout.txt",
             "error": "stderr.txt", 
         }
         compute_unit = self.pilot.submit_compute_unit(compute_unit_description)
-        compute_unit.wait()
-        dus = self.__get_output_du(prefix)
-        return dus[0]
-
+        
+        future = Future(self.pilot, [compute_unit], self._get_reduce_output, prefix)
+        return future
+        
 
     def map(self, function, args, start=0, end=None):
         if end==None:
@@ -187,7 +237,8 @@ class DistributedInMemoryDataUnit():
 
     
     ###########################################################################
-    def __get_output_du(self, prefix):
+    # Private
+    def _get_output_du(self, prefix):
         names=self.redis_client.keys(prefix+"*")
         dus = []
         for n in names:
@@ -195,6 +246,9 @@ class DistributedInMemoryDataUnit():
             dus.append(du)
         return dus
     
+    def _get_reduce_output(self, prefix):
+        dus = self._get_output_du(prefix)
+        return dus[0]
    
 
 
