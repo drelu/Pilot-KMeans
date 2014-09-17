@@ -70,6 +70,7 @@ class DistributedInMemoryDataUnit(object):
         self.resource_lock = threading.RLock()
         self.pipe = self.redis_client.pipeline()
         self.name=name
+        self.redisHost= hostname
         try:
             self.redis_client.ping()
         except Exception, ex:
@@ -116,6 +117,7 @@ class DistributedInMemoryDataUnit(object):
                 "executable": "python",
                 "arguments": ["-m", "distributed_inmem.dataunit", 
                               "-n", self.name,  
+                              "-c", self.redisHost,
                               "-m", "kmeans.kmeans", 
                               "--map_function", function, 
                               "--partition_start", partition_start,
@@ -149,6 +151,7 @@ class DistributedInMemoryDataUnit(object):
             "executable": "python",
             "arguments": ["-m", "distributed_inmem.dataunit", 
                           "-n", self.name,  
+                          "-c", self.redisHost,
                           "-m", "kmeans.kmeans", 
                           "--reduce_function", function,
                           "--output_du_prefix", prefix],
@@ -173,7 +176,7 @@ class DistributedInMemoryDataUnit(object):
             else: 
                 # check weather arg is an DU that needs to get loaded
                 if type(args)==types.StringType and self.redis_client.exists(args):
-                    args = DistributedInMemoryDataUnit(name=args).export()
+                    args = DistributedInMemoryDataUnit(name=args, hostname=self.redisHost).export()
                 if args.__class__.__name__==DistributedInMemoryDataUnit.__name__:
                     args = args.export()
                 result.append(function(p, args))
@@ -189,7 +192,7 @@ class DistributedInMemoryDataUnit(object):
         else: 
             # check weather arg is an DU that needs to get loaded
             if type(args)==types.StringType and self.redis_client.exists(args):
-                args = DistributedInMemoryDataUnit(name=args).export()
+                args = DistributedInMemoryDataUnit(name=args, hostname=self.redisHost).export()
             if args.__class__.__name__==DistributedInMemoryDataUnit.__name__:
                 args = args.export()
             result = function(points, args)
@@ -242,7 +245,7 @@ class DistributedInMemoryDataUnit(object):
         names=self.redis_client.keys(prefix+"*")
         dus = []
         for n in names:
-            du = DistributedInMemoryDataUnit(n, pilot=self.pilot)
+            du = DistributedInMemoryDataUnit(n, pilot=self.pilot, hostname=self.redisHost)
             dus.append(du)
         return dus
     
@@ -260,7 +263,6 @@ if __name__ == '__main__':
     
     """
     print "Start worker task for distributed in-memory dataunit"
-    distributed_data_unit = DistributedInMemoryDataUnit()
     parser = argparse.ArgumentParser(add_help=True, description="""DistributedInMemoryDataUnit Startup Utility""")
     
     parser.add_argument('--coordination', '-c', default="redis://localhost")
@@ -286,8 +288,10 @@ if __name__ == '__main__':
         print "Error! Please specify module"
         sys.exit(-1)
     
+    distributed_data_unit = DistributedInMemoryDataUnit(hostname=parsed_arguments.coordination)
+
     name = parsed_arguments.name
-    du = DistributedInMemoryDataUnit(name)
+    du = DistributedInMemoryDataUnit(name,hostname=parsed_arguments.coordination)
     module = parsed_arguments.module
     args = None
     if parsed_arguments.args!=None:
@@ -316,7 +320,7 @@ if __name__ == '__main__':
             for key, group in itertools.groupby(map_reduce_result, lambda x: x[0]):
                 partition = prefix+":"+str(key)
                 if not dus.has_key(partition):
-                    dus[partition] = DistributedInMemoryDataUnit(name=partition)
+                    dus[partition] = DistributedInMemoryDataUnit(name=partition, hostname=parsed_arguments.coordination)
                 dus[partition].load(group)    
     elif reduce_function!=None:
         classname = reduce_function.split(".")[0]
@@ -329,7 +333,7 @@ if __name__ == '__main__':
             prefix = parsed_arguments.output_du_prefix
             du_name = prefix + "-" + name
             print "Export result to DU:" + prefix + "-" + du_name
-            du = DistributedInMemoryDataUnit(name=du_name)
+            du = DistributedInMemoryDataUnit(name=du_name, hostname=parsed_arguments.coordination)
             du.load([map_reduce_result])    
     
    
