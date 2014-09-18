@@ -14,6 +14,7 @@ import threading
 import numpy as np
 import itertools
 import datetime
+import pdb
 from distributed_inmem.dataunit import DistributedInMemoryDataUnit
 from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
 
@@ -48,7 +49,8 @@ class KMeans(object):
     
 
 PERFORMANCE_DATA_FILE="DIDU-kmeans-results-" 
-NUM_ITERATIONS=10
+NUM_ITERATIONS=1
+RUNS=1
 inputFiles = ["/scratch/01539/pmantha/input/10000Points50Centers.csv","/scratch/01539/pmantha/input/1000oints500Centers.csv","/scratch/01539/pmantha/input/100Points5000Centers.csv" ]
 clusters = [50,500,5000]
 nbrMappers = [4,8,16]
@@ -70,6 +72,8 @@ if __name__ == '__main__':
             time_measures={}
             
             start_pilot = time.time()
+            DistributedInMemoryDataUnit(flushdb=True, hostname="login2.stampede.tacc.utexas.edu")
+
             #############################################################################
             pilot_compute_description = { "service_url": 'slurm+ssh://stampede.tacc.xsede.org',
                                            "working_directory": '/scratch/01539/pmantha/pilot-compute',
@@ -87,7 +91,7 @@ if __name__ == '__main__':
             logger.debug("Started pilot in %.2f sec"%time_measures["Pilot Submission"])
             #############################################################################
     
-            for r in range(3):                    
+            for r in range(RUNS):                    
                 for ex in range(len(inputFiles)):
                     start = time.time()
                     logger.debug("Start KMeans for input file %s, rep: %s"%(inputFiles[ex], r))
@@ -95,7 +99,7 @@ if __name__ == '__main__':
                     points = f.readlines()
                     f.close()
                     number_of_data_points=len(points)    
-                    du_points = DistributedInMemoryDataUnit(name="Points", flushdb=True, pilot=pilot, hostname="login2.stampede.tacc.utexas.edu")
+                    du_points = DistributedInMemoryDataUnit(name="Points", pilot=pilot, hostname="login2.stampede.tacc.utexas.edu")
                     du_points.load(points)    
                     centers = points[:clusters[ex]]
             
@@ -146,10 +150,8 @@ if __name__ == '__main__':
                     line = (str(r),"DIDU-KMeans", str(inputFiles[ex]), str(number_of_data_points), str(number_of_centroids_points), str(time_measures["Runtime"]),
                             str(m), str(time_measures["average_map"]), str(time_measures["average_reduce"]))
                     output_data.write(",".join(line) + "\n")
-                    
-    finally:     
+                    output_data.flush()                    
+    except:     
+        e = sys.exc_info()[0]
         output_data.close()
-    
-    
-    
-    
+        pilot_compute_service.cancel()
