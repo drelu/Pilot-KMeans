@@ -53,35 +53,38 @@ class Future(object):
         #dus = self.distributed_inmemory_dataunit._get_output_du(self.prefix)
         result = self.output_collector(self.prefix)
         return result
-       
 
-
-class DistributedInMemoryDataUnit(object):  
-    """ In-Memory DU backed by Redis """
-            
-    def __init__(self, name="test-dimdu",
+class InMemoryCoordination(object):
+    def __init__(self, 
                  hostname="localhost" ,
                  port=6379,
                  flushdb=False, 
                  pilot=None):
+                 
         self.redis_connection_pool = redis.ConnectionPool(host=hostname, port=6379, password=None, db=0)
         self.redis_client = redis.Redis(connection_pool=self.redis_connection_pool)
-        #self.redis_client_pubsub = self.redis_client.pubsub() # redis pubsub client       
-        self.resource_lock = threading.RLock()
-        self.pipe = self.redis_client.pipeline()
-        self.name=name
         self.redisHost= hostname
         try:
             self.redis_client.ping()
         except Exception, ex:
             logger.error("Cannot connect to Redis server: %s" % str(ex))
             raise Exception("Cannot connect to Redis server: %s" % str(ex))
-        self.data = []
-        self.len = 0
         self.pilot=pilot
         if flushdb:
             self.redis_client.flushdb()
-        
+           
+
+
+class DistributedInMemoryDataUnit(object):  
+    """ In-Memory DU backed by Redis """
+            
+    def __init__(self, coordination= None, name="test-dimdu"):
+        self.df = coordination
+        self.resource_lock = threading.RLock()
+        self.pipe = self.df.redis_client.pipeline()
+        self.name=name
+        self.data = []
+        self.len = 0        
         
     def load(self, data=[]):
         for i in data:
@@ -93,11 +96,15 @@ class DistributedInMemoryDataUnit(object):
     def reload(self, data=[]):
         self.pipe.delete(self.name)
         self.len=0
-        self.load(data)        
+        self.load(data)  
+        
+    def delete(self):
+        self.pipe.delete(self.name)
+        self.len=0          
         
         
     def map_pilot(self, function, args, 
-                  partition_prefix="map-part",
+                  partition_prefix="map-part",  
                   number_of_compute_units=1,
                   number_of_cores_per_compute_unit=1):        
         """ Execute map function using a set of CUs on the Pilot 
@@ -117,7 +124,7 @@ class DistributedInMemoryDataUnit(object):
                 "executable": "python",
                 "arguments": ["-m", "distributed_inmem.dataunit", 
                               "-n", self.name,  
-                              "-c", self.redisHost,
+                              "-c", self.df.redisHost,
                               "-m", "kmeans.kmeans", 
                               "--map_function", function, 
                               "--partition_start", partition_start,
@@ -128,12 +135,12 @@ class DistributedInMemoryDataUnit(object):
                 "output": "stdout.txt",
                 "error": "stderr.txt", 
             }
-            compute_unit = self.pilot.submit_compute_unit(compute_unit_description)
+            compute_unit = self.df.pilot.submit_compute_unit(compute_unit_description)
             cus.append(compute_unit)
             partition_start = partition_end + 1
         #compute_unit.wait()
         
-        future = Future(self.pilot, cus, self._get_output_du, prefix)
+        future = Future(self.df.pilot, cus, self._get_output_du, prefix)
         return future
     
         
@@ -151,7 +158,7 @@ class DistributedInMemoryDataUnit(object):
             "executable": "python",
             "arguments": ["-m", "distributed_inmem.dataunit", 
                           "-n", self.name,  
-                          "-c", self.redisHost,
+                          "-c", self.df.redisHost,
                           "-m", "kmeans.kmeans", 
                           "--reduce_function", function,
                           "--output_du_prefix", prefix],
@@ -159,24 +166,24 @@ class DistributedInMemoryDataUnit(object):
             "output": "stdout.txt",
             "error": "stderr.txt", 
         }
-        compute_unit = self.pilot.submit_compute_unit(compute_unit_description)
+        compute_unit = self.df.pilot.submit_compute_unit(compute_unit_description)
         
-        future = Future(self.pilot, [compute_unit], self._get_reduce_output, prefix)
+        future = Future(self.df.pilot, [compute_unit], self._get_reduce_output, prefix)
         return future
         
 
     def map(self, function, args, start=0, end=None):
         if end==None:
-            end = self.redis_client.llen(self.name)
-        points = self.redis_client.lrange(self.name, start, end)
+            end = self.df.redis_client.llen(self.name)
+        points = self.df.redis_client.lrange(self.name, start, end)
         result = []
         for p in points:
             if args==None:
                 result.append(function(p))
             else: 
                 # check weather arg is an DU that needs to get loaded
-                if type(args)==types.StringType and self.redis_client.exists(args):
-                    args = DistributedInMemoryDataUnit(name=args, hostname=self.redisHost).export()
+                if type(args)==types.StringType and self.df.redis_client.exists(args):
+                    args = DistributedInMemoryDataUnit(name=args, coordination=self.df).export()
                 if args.__class__.__name__==DistributedInMemoryDataUnit.__name__:
                     args = args.export()
                 result.append(function(p, args))
@@ -184,15 +191,15 @@ class DistributedInMemoryDataUnit(object):
 
 
     def reduce(self, function, args):
-        end = self.redis_client.llen(self.name)
-        points = self.redis_client.lrange(self.name, 0, end)
+        end = self.df.redis_client.llen(self.name)
+        points = self.df.redis_client.lrange(self.name, 0, end)
         result = None
         if args==None:
             result = function(points)
         else: 
             # check weather arg is an DU that needs to get loaded
-            if type(args)==types.StringType and self.redis_client.exists(args):
-                args = DistributedInMemoryDataUnit(name=args, hostname=self.redisHost).export()
+            if type(args)==types.StringType and self.df.redis_client.exists(args):
+                args = DistributedInMemoryDataUnit(name=args, coordination=self.df).export()
             if args.__class__.__name__==DistributedInMemoryDataUnit.__name__:
                 args = args.export()
             result = function(points, args)
@@ -225,12 +232,11 @@ class DistributedInMemoryDataUnit(object):
         results = self.pipe.execute()
         logger.debug("New data after merge: " + str(data))
         return self
-    
         
     
     def export(self):
-        end = self.redis_client.llen(self.name)
-        return self.redis_client.lrange(self.name, 0, end)
+        end = self.df.redis_client.llen(self.name)
+        return self.df.redis_client.lrange(self.name, 0, end)
      
     
     @staticmethod
@@ -242,10 +248,10 @@ class DistributedInMemoryDataUnit(object):
     ###########################################################################
     # Private
     def _get_output_du(self, prefix):
-        names=self.redis_client.keys(prefix+"*")
+        names=self.df.redis_client.keys(prefix+"*")
         dus = []
         for n in names:
-            du = DistributedInMemoryDataUnit(n, pilot=self.pilot, hostname=self.redisHost)
+            du = DistributedInMemoryDataUnit(name=n, coordination=self.df)
             dus.append(du)
         return dus
     
@@ -287,11 +293,11 @@ if __name__ == '__main__':
     elif parsed_arguments.module==None:
         print "Error! Please specify module"
         sys.exit(-1)
+        
+    df = InMemoryCoordination(hostname=parsed_arguments.coordination)
     
-    distributed_data_unit = DistributedInMemoryDataUnit(hostname=parsed_arguments.coordination)
-
     name = parsed_arguments.name
-    du = DistributedInMemoryDataUnit(name,hostname=parsed_arguments.coordination)
+    du = DistributedInMemoryDataUnit(name=name, coordination=df)
     module = parsed_arguments.module
     args = None
     if parsed_arguments.args!=None:
@@ -320,7 +326,7 @@ if __name__ == '__main__':
             for key, group in itertools.groupby(map_reduce_result, lambda x: x[0]):
                 partition = prefix+":"+str(key)
                 if not dus.has_key(partition):
-                    dus[partition] = DistributedInMemoryDataUnit(name=partition, hostname=parsed_arguments.coordination)
+                    dus[partition] = DistributedInMemoryDataUnit(name=partition, coordination=df)
                 dus[partition].load(group)    
     elif reduce_function!=None:
         classname = reduce_function.split(".")[0]
@@ -333,9 +339,5 @@ if __name__ == '__main__':
             prefix = parsed_arguments.output_du_prefix
             du_name = prefix + "-" + name
             print "Export result to DU:" + prefix + "-" + du_name
-            du = DistributedInMemoryDataUnit(name=du_name, hostname=parsed_arguments.coordination)
+            du = DistributedInMemoryDataUnit(name=du_name, coordination=df)
             du.load([map_reduce_result])    
-    
-   
-
-    

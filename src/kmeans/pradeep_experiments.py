@@ -15,7 +15,7 @@ import numpy as np
 import itertools
 import datetime
 import pdb
-from distributed_inmem.dataunit import DistributedInMemoryDataUnit
+from distributed_inmem.dataunit import DistributedInMemoryDataUnit, InMemoryCoordination
 from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
 
 class KMeans(object):
@@ -54,7 +54,9 @@ RUNS=1
 inputFiles = ["/scratch/01539/pmantha/input/10000Points50Centers.csv","/scratch/01539/pmantha/input/1000oints500Centers.csv","/scratch/01539/pmantha/input/100Points5000Centers.csv" ]
 clusters = [50,500,5000]
 nbrMappers = [4,8,16]
-COORDINATION_URL = "redis://login2.stampede.tacc.utexas.edu:6379"
+PILOT_COORDINATION_URL = "redis://login2.stampede.tacc.utexas.edu:6379"
+INMEM_COORDINATION_HOST = "login3.stampede.tacc.utexas.edu"
+
 
 
 ###################################################################################################
@@ -72,8 +74,6 @@ if __name__ == '__main__':
             time_measures={}
             
             start_pilot = time.time()
-            DistributedInMemoryDataUnit(flushdb=True, hostname="login2.stampede.tacc.utexas.edu")
-
             #############################################################################
             pilot_compute_description = { "service_url": 'slurm+ssh://stampede.tacc.xsede.org',
                                            "working_directory": '/scratch/01539/pmantha/pilot-compute',
@@ -84,12 +84,14 @@ if __name__ == '__main__':
                                            "walltime":60,
                                            "number_of_processes": m*2,
                                          }  
-            pilot_compute_service = PilotComputeService(coordination_url=COORDINATION_URL)                                         
+            pilot_compute_service = PilotComputeService(coordination_url=PILOT_COORDINATION_URL)                                         
             pilot = pilot_compute_service.create_pilot(pilot_compute_description=pilot_compute_description)
             end_start_pilot = time.time()
             time_measures["Pilot Submission"]=end_start_pilot-start_pilot
             logger.debug("Started pilot in %.2f sec"%time_measures["Pilot Submission"])
             #############################################################################
+            
+            df = InMemoryCoordination(flushdb=True, pilot=pilot, hostname=INMEM_COORDINATION_HOST)
     
             for r in range(RUNS):                    
                 for ex in range(len(inputFiles)):
@@ -99,11 +101,11 @@ if __name__ == '__main__':
                     points = f.readlines()
                     f.close()
                     number_of_data_points=len(points)    
-                    du_points = DistributedInMemoryDataUnit(name="Points", pilot=pilot, hostname="login2.stampede.tacc.utexas.edu")
+                    du_points = DistributedInMemoryDataUnit(name="Points", coordination=df)
                     du_points.load(points)    
                     centers = points[:clusters[ex]]
             
-                    du_centers = DistributedInMemoryDataUnit("Centers", hostname="login2.stampede.tacc.utexas.edu")
+                    du_centers = DistributedInMemoryDataUnit(name="Centers", coordination=df)
                     du_centers.load(centers)
                     number_of_centroids_points=len(centers)  
 
@@ -135,7 +137,7 @@ if __name__ == '__main__':
                         
                         total_reduce_time = total_reduce_time + (reduce_end_time-map_end_time)
                     
-                        du_centers = DistributedInMemoryDataUnit("Centers-%d"%(iteration+1), hostname="login2.stampede.tacc.utexas.edu").merge(new_centers)
+                        du_centers = DistributedInMemoryDataUnit(name="Centers-%d"%(iteration+1), coordination=df).merge(new_centers)
                         iteration_end = time.time()
                         time_measures["Iteration-%d"%iteration] = iteration_end - iteration_start
              
@@ -143,7 +145,8 @@ if __name__ == '__main__':
                     time_measures["Runtime"] = end-start
                     time_measures["average_map"] = total_map_time/NUM_ITERATIONS
                     time_measures["average_reduce"] = total_reduce_time/NUM_ITERATIONS
-                    
+                    du_points.delete()
+                    du_centers.delete()                    
             
                     #################################################################################################################
         
