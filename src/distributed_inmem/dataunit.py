@@ -165,6 +165,7 @@ class DistributedInMemoryDataUnit(object):
     def map(self, function, args, start=0, end=None):
         if end==None:
             end = self.redis_client.llen(self.name)
+        logger.debug("Run Map for range: %s-%s"%(str(start), str(end)))
         points = self.redis_client.lrange(self.name, start, end)
         result = []
         for p in points:
@@ -259,7 +260,7 @@ if __name__ == '__main__':
        python -m distributed_inmem.dataunit -n Points -m kmeans.kmeans --map_function KMeans.closestPoint --args Centers --shuffle_du_prefix=part
     
     """
-    print "Start worker task for distributed in-memory dataunit"
+    logger.debug("Start worker task for distributed in-memory dataunit")
     distributed_data_unit = DistributedInMemoryDataUnit()
     parser = argparse.ArgumentParser(add_help=True, description="""DistributedInMemoryDataUnit Startup Utility""")
     
@@ -277,13 +278,13 @@ if __name__ == '__main__':
     
     parsed_arguments = parser.parse_args()  
     if parsed_arguments.name==None:
-        print "Error! Please specify name of Data Unit"
+        logger.error("Error! Please specify name of Data Unit")
         sys.exit(-1)
     elif parsed_arguments.map_function==None and parsed_arguments.reduce_function==None:
-        print "Error! Please specify map or reduce function"
+        logger.error("Error! Please specify map or reduce function")
         sys.exit(-1)
     elif parsed_arguments.module==None:
-        print "Error! Please specify module"
+        logger.error("Error! Please specify module")
         sys.exit(-1)
     
     name = parsed_arguments.name
@@ -292,8 +293,15 @@ if __name__ == '__main__':
     args = None
     if parsed_arguments.args!=None:
         args = parsed_arguments.args
+        
+    end = None
+    start = 0        
+    if parsed_arguments.partition_start!=None:
+        start = parsed_arguments.partition_start
+    if parsed_arguments.partition_end!=None:
+        end = parsed_arguments.partition_end
     
-    print "Load module: " + module
+    logger.debug("Load module: " + module)
     mod = importlib.import_module(module)
     print(str(dir(mod)))
     
@@ -306,8 +314,10 @@ if __name__ == '__main__':
         functionname = map_function.split(".")[1]
         class_pointer = getattr(mod, classname)
         function_pointer = getattr(class_pointer, functionname)
-        map_reduce_result = du.map(function_pointer, args)
+        map_reduce_result = du.map(function_pointer, args, start, end)
         print(str(map_reduce_result))
+        
+        ## shuffle phase sorting data and store in output du
         if parsed_arguments.output_du_prefix!=None:
             prefix = parsed_arguments.output_du_prefix
             map_reduce_result.sort(key=lambda tup: tup[0])
