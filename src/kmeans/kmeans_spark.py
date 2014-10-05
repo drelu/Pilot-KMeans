@@ -6,19 +6,15 @@ Distributed In-Memory KMeans
 
 import os, sys, time
 import logging
-logger = logging.getLogger('DistributedInMemoryDataUnit-KMeans')
+logger = logging.getLogger('DistributedInMemoryDataUnitSpark-KMeans')
 logger.setLevel(logging.DEBUG)
-import redis
 import threading
 import numpy as np
 import itertools
 import datetime
 
-try:
-    from distributed_inmem.dataunit import DistributedInMemoryDataUnit
-    from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
-except:
-    print "Please install BigJob!"
+#import pilot
+from distributed_inmem.dataunit_spark import DistributedInMemoryDataUnit
 
 class KMeans(object):
 
@@ -26,41 +22,30 @@ class KMeans(object):
     def closestPoint(points, centers):
         bestIndex = 0
         closest = float("+inf")
+        print("**closestPoint - Point: " + str(points) + " Centers: " + str(centers))
         points = np.array([float(x) for x in points.split(",")])
         centers = np.array([[float(c.split(',')[0]), float(c.split(',')[1])] for c in centers])
-        logger.debug("**closestPoint - Point: " + str(points) + " Centers: " + str(centers))
         for i in range(len(centers)):
             #dist = sum([(m-k)**2 for k,m in zip(points,centers[i]) ])
             dist = np.sum((points - centers[i]) ** 2)
             if dist < closest:
                 closest = dist
                 bestIndex = i
-                logger.debug("Map point " + str(points) + " to index " + str(bestIndex))
+                print("Map point " + str(points) + " to index " + str(bestIndex))
         return (bestIndex, points.tolist())
     
     @staticmethod
     def averagePoints(points):
-        logger.debug("Call average points on: " + str(points))
-        points_extracted = [eval(i)[1] for i in points]
+        print("Call average points on: " + str(points))
+        points_extracted = [eval(i)[1] for i in eval(points)]
         points_np = np.array(points_extracted)
         new_center = np.mean(points_np, axis=0)
-        logger.debug("New center: " + str(new_center))
+        print("New center: " + str(new_center))
         new_center_string = ','.join(['%.5f' % num for num in new_center])
-        logger.debug("New center string: " + new_center_string) 
-        return new_center_string 
-    
-    
-def start_pilot(pilot_compute_description=None):
-    COORDINATION_URL = "redis://localhost:6379"
-    pilot_compute_service = PilotComputeService(coordination_url=COORDINATION_URL)
-    if pilot_compute_description==None:
-        pilot_compute_description = {
-                             "service_url": 'fork://localhost',
-                             "number_of_processes": 2,                             
-                             "working_directory": os.getcwd() + "/work/",
-                             }    
-    pilot = pilot_compute_service.create_pilot(pilot_compute_description=pilot_compute_description)
-    return pilot
+        print("New center string: " + new_center_string)
+        return new_center_string
+
+
 
 
 PERFORMANCE_DATA_FILE="DIDU-kmeans-results-" 
@@ -71,36 +56,28 @@ NUM_ITERATIONS=2
 ###################################################################################################
 if __name__ == '__main__':
     
-    DistributedInMemoryDataUnit.flushdb()
     run_timestamp=datetime.datetime.now()
     time_measures={}
     
     #############################################################################
     start = time.time()
-    pilot_compute_description = {
-                             "service_url": 'fork://localhost',
-                             "number_of_processes": 2,                             
-                             "working_directory": os.getcwd() + "/work/",
-                             }   
-    pilot=start_pilot()
     end_start_pilot = time.time()
     time_measures["Pilot Submission"]=end_start_pilot-start
     logger.debug("Started pilot in %.2f sec"%time_measures["Pilot Submission"])
     #############################################################################
-    
-    
+
     logger.debug("Start KMeans")
     f = open("data_20points.csv")
     points = f.readlines()
     f.close()
     number_of_data_points=len(points)    
-    du_points = DistributedInMemoryDataUnit("Points", pilot=pilot)
+    du_points = DistributedInMemoryDataUnit("Points", url="local[1]", pilot=None)
     du_points.load(points)
     
     f = open("centers.csv")
     centers = f.readlines()
     f.close()
-    du_centers = DistributedInMemoryDataUnit("Centers")
+    du_centers = DistributedInMemoryDataUnit("Centers", url="local[1]", pilot=None)
     du_centers.load(centers)
     number_of_centroids_points=len(centers)  
 
@@ -113,7 +90,7 @@ if __name__ == '__main__':
         output_dus = future.result()
         new_centers = []
         for du in output_dus:
-            future=du.reduce_pilot("KMeans.averagePoints")
+            future = du.reduce_pilot("KMeans.averagePoints")
             result_du = future.result()
             new_centers.append(result_du)
                     
