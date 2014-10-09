@@ -52,6 +52,7 @@ PERFORMANCE_DATA_FILE="DIDU-kmeans-results-"
 FIELDS=["NumberPoints", "Pilot", "KMeansImpl", "RunTimestamp", "Type"]
 RESULT_DIR="results"
 NUM_ITERATIONS=2
+NUMBER_OF_COMPUTE_UNITS=2
 
 ###################################################################################################
 if __name__ == '__main__':
@@ -71,13 +72,13 @@ if __name__ == '__main__':
     points = f.readlines()
     f.close()
     number_of_data_points=len(points)    
-    du_points = DistributedInMemoryDataUnit("Points", url="local[1]", pilot=None)
+    du_points = DistributedInMemoryDataUnit("Points", url="local["+str(NUMBER_OF_COMPUTE_UNITS)+"]", pilot={"number_of_processes": NUMBER_OF_COMPUTE_UNITS})
     du_points.load(points)
     
     f = open("centers.csv")
     centers = f.readlines()
     f.close()
-    du_centers = DistributedInMemoryDataUnit("Centers", url="local[1]", pilot=None)
+    du_centers = DistributedInMemoryDataUnit("Centers", url="local["+str(NUMBER_OF_COMPUTE_UNITS)+"]", pilot={"number_of_processes": NUMBER_OF_COMPUTE_UNITS})
     du_centers.load(centers)
     number_of_centroids_points=len(centers)  
 
@@ -86,11 +87,11 @@ if __name__ == '__main__':
         
     for iteration in range(0,NUM_ITERATIONS):
         iteration_start = time.time()
-        future = du_points.map_pilot("KMeans.closestPoint", du_centers.name, number_of_compute_units=2)
+        future = du_points.map_pilot("KMeans.closestPoint", du_centers.name, number_of_compute_units=NUMBER_OF_COMPUTE_UNITS)
         output_dus = future.result()
         new_centers = []
         for du in output_dus:
-            future = du.reduce_pilot("KMeans.averagePoints")
+            future = du.reduce_pilot("KMeans.averagePoints", number_of_compute_units=NUMBER_OF_COMPUTE_UNITS)
             result_du = future.result()
             new_centers.append(result_du)
                     
@@ -111,8 +112,8 @@ if __name__ == '__main__':
     output_data = open(os.path.join(RESULT_DIR, PERFORMANCE_DATA_FILE + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"), "w")
     header=",".join(["KMeansImpl", "NumberPoints", "NumberCentroids", "NumberIterations" "Pilot", "NumberCores" "RunTimestamp", "Type", "Value"])
     line = ("DIDU-KMeans", str(number_of_data_points), str(number_of_centroids_points), 
-            str(NUM_ITERATIONS), pilot_compute_description["service_url"], 
-            str(pilot_compute_description["number_of_processes"]), run_timestamp.isoformat())
+            str(NUM_ITERATIONS), "Spark",
+            str(NUMBER_OF_COMPUTE_UNITS), run_timestamp.isoformat())
     
     for time_type, value in time_measures.items():
         print_string=",".join(line + (time_type, str(value)))

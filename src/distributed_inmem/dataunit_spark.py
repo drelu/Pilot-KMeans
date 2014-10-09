@@ -101,6 +101,10 @@ class DistributedInMemoryDataUnit(object):
             #spark_context = SparkContext(conf)
             spark_context = SparkContext(url, "Pilot-InMemory", sparkHome=os.environ["SPARK_HOME"])
 
+        self.parallelism=1
+        if pilot!=None and pilot.has_key("number_of_processes"):
+            self.parallelism=int(pilot["number_of_processes"])
+
         self.sc=spark_context
         self.url = url
         self.resource_lock = threading.RLock()
@@ -109,7 +113,7 @@ class DistributedInMemoryDataUnit(object):
 
 
     def load(self, data=[]):
-        self.data = self.sc.parallelize(data)
+        self.data = self.sc.parallelize(data, self.parallelism)
         rddDict[self.name]=self.data
     
     def reload(self, data=[]):
@@ -127,17 +131,17 @@ class DistributedInMemoryDataUnit(object):
         """ Execute map function using a set of CUs on the Pilot 
             TODO: add partitioning
         """
-        return self.map(function, args)
+        return self.map(function, args, number_of_compute_units)
         
 
     def reduce_pilot(self, function,
                      partition_prefix="reduce-part",
-                     number_of_cores_per_compute_unit=1
+                     number_of_compute_units=1
                      ):  
-        return self.reduce(function)
+        return self.reduce(function, number_of_compute_units=number_of_compute_units)
 
 
-    def map(self, function, args, start=0, end=None):
+    def map(self, function, args, start=0, end=None, number_of_compute_units=1):
         data = None
         if rddDict.has_key(args):
             rdd = rddDict[args]
@@ -152,7 +156,7 @@ class DistributedInMemoryDataUnit(object):
         return Future([output_du])
 
 
-    def reduce(self, function, args=None):
+    def reduce(self, function, args=None, number_of_compute_units=1):
         classname = function.split(".")[0]
         functionname = function.split(".")[1]
         # get reference to calling module
@@ -163,10 +167,10 @@ class DistributedInMemoryDataUnit(object):
         class_pointer = getattr(mod, classname)
         function_pointer = getattr(class_pointer, functionname)
         print str(function_pointer)
-        grouped_data = self.data.groupByKey()
+        grouped_data = self.data.groupByKey(number_of_compute_units)
         #group_data_string = grouped_data.map(lambda a: "(%d,%s)"%(a[0],[i for i in a[1]]))
-        group_data_string = grouped_data.map(lambda a: "%s"%([str((a[0],i)) for i in a[1]]))
-        result_rdd=group_data_string.map(function_pointer)
+        group_data_string = grouped_data.map(lambda a: "%s"%([str((a[0],i)) for i in a[1]]), number_of_compute_units)
+        result_rdd=group_data_string.map(function_pointer, number_of_compute_units)
         output_du = DistributedInMemoryDataUnit("output-du", url=self.url)
         output_du.data=result_rdd
         return Future(output_du)
