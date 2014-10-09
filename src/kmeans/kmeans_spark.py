@@ -54,6 +54,15 @@ RESULT_DIR="results"
 NUM_ITERATIONS=2
 NUMBER_OF_COMPUTE_UNITS=2
 
+#########################################################,
+# URL of Spark Master
+# Run Spark in local mode
+SPARK_URL="local["+str(NUMBER_OF_COMPUTE_UNITS)+"]"
+
+# Connect to Spark Standalone Cluster
+#SPARK_URL="spark://localhost:7077"
+
+
 ###################################################################################################
 if __name__ == '__main__':
     
@@ -72,13 +81,13 @@ if __name__ == '__main__':
     points = f.readlines()
     f.close()
     number_of_data_points=len(points)    
-    du_points = DistributedInMemoryDataUnit("Points", url="local["+str(NUMBER_OF_COMPUTE_UNITS)+"]", pilot={"number_of_processes": NUMBER_OF_COMPUTE_UNITS})
+    du_points = DistributedInMemoryDataUnit("Points", url=SPARK_URL, pilot={"number_of_processes": NUMBER_OF_COMPUTE_UNITS})
     du_points.load(points)
     
     f = open("centers.csv")
     centers = f.readlines()
     f.close()
-    du_centers = DistributedInMemoryDataUnit("Centers", url="local["+str(NUMBER_OF_COMPUTE_UNITS)+"]", pilot={"number_of_processes": NUMBER_OF_COMPUTE_UNITS})
+    du_centers = DistributedInMemoryDataUnit("Centers", url=SPARK_URL, pilot={"number_of_processes": NUMBER_OF_COMPUTE_UNITS})
     du_centers.load(centers)
     number_of_centroids_points=len(centers)  
 
