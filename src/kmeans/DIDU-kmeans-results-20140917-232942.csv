@@ -1,3 +1,0 @@
-Run,KMeansImpl,File,NumberDataPoints,NumberCentroids,RunTimestamp,Mappers,AverageMapTime,AverageReduceTime
-0,DIDU-KMeans,/scratch/01539/pmantha/input/10000Points50Centers.csv,10000,50,93.8291199207,4,74.4788599014,18.7548420429
-0,DIDU-KMeans,/scratch/01539/pmantha/input/1000oints500Centers.csv,1000,500,294.847723961,4,126.659052849,167.527196169
