@@ -85,11 +85,23 @@ class DistributedInMemoryDataUnit(object):
         
         
     def load(self, data=[]):
-        for i in data:
-            self.pipe.rpush(self.name, i)
-            self.len = self.len + 1
-        self.pipe.execute()
-    
+        data = list(data)        
+        self.len = len(data)
+        part_start = 0
+        part_end = self.len
+        maxChunkSize = 1000000
+        
+        while part_end-part_start > 0:
+            if part_end-part_start > maxChunkSize:
+                logger.debug("Loading %s-%s" %( part_start, part_start+maxChunkSize))
+                self.pipe.rpush(self.name, *data[part_start:part_start+maxChunkSize])
+                part_start = part_start + maxChunkSize
+            else:
+                logger.debug("Loading last part %s-%s" % (part_start, part_end))
+                self.pipe.rpush(self.name, *data[part_start:part_end])            
+                part_start = part_end
+            self.pipe.execute()                           
+
     
     def reload(self, data=[]):
         self.pipe.delete(self.name)
@@ -111,7 +123,10 @@ class DistributedInMemoryDataUnit(object):
         partition_start = 0
         cus=[]
         for i in range(0, number_of_compute_units):
-            partition_end = partition_start + number_of_lines_per_du
+            if partition_start + number_of_lines_per_du < self.len:
+                partition_end = partition_start + number_of_lines_per_du
+            else:
+                partition_end = self.len
             logger.debug("CU %d:, Partition Start: %d, Partition End: %d"%(i,partition_start, partition_end))
             # start compute unit
             compute_unit_description = {
@@ -308,7 +323,7 @@ if __name__ == '__main__':
         functionname = map_function.split(".")[1]
         class_pointer = getattr(mod, classname)
         function_pointer = getattr(class_pointer, functionname)
-        map_reduce_result = du.map(function_pointer, args)
+        map_reduce_result = du.map(function_pointer, args, int(parsed_arguments.partition_start), int(parsed_arguments.partition_end))
         print(str(map_reduce_result))
         if parsed_arguments.output_du_prefix!=None:
             prefix = parsed_arguments.output_du_prefix
@@ -319,7 +334,7 @@ if __name__ == '__main__':
                 partition = prefix+":"+str(key)
                 if not dus.has_key(partition):
                     dus[partition] = DistributedInMemoryDataUnit(name=partition)
-                dus[partition].load(group)    
+                    dus[partition].load(group)    
     elif reduce_function!=None:
         classname = reduce_function.split(".")[0]
         functionname = reduce_function.split(".")[1]
