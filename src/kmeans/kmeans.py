@@ -1,6 +1,5 @@
 '''
 Distributed In-Memory KMeans
-Created on Jul 4, 2014
 
 @author: Andre Luckow
 '''
@@ -14,9 +13,11 @@ import threading
 import numpy as np
 import itertools
 import datetime
-import pdb
-from distributed_inmem.dataunit import DistributedInMemoryDataUnit, InMemoryCoordination
-from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
+try:
+    from distributed_inmem.dataunit import DistributedInMemoryDataUnit
+    from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
+except:
+    print "Please install BigJob!"
 
 class KMeans(object):
 
