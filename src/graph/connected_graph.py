@@ -5,4 +5,4 @@ Created on Aug 30, 2014
 '''
 
 if __name__ == '__main__':
-    print "hello world"
+    pass
