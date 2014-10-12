@@ -141,7 +141,7 @@ class DistributedInMemoryDataUnit(object):
         return self.reduce(function, number_of_compute_units=number_of_compute_units)
 
 
-    def map(self, function, args, start=0, end=None, number_of_compute_units=1):
+    def map(self, function, args, start=0, end=None, number_of_compute_units=None):
         data = None
         if rddDict.has_key(args):
             rdd = rddDict[args]
@@ -151,7 +151,8 @@ class DistributedInMemoryDataUnit(object):
         result_rdd = self.data.map(spark_map.execute)
         result_data = result_rdd.collect()
         print("Results of Map: " + str(result_data))
-        output_du = DistributedInMemoryDataUnit("output-du", url=self.url)
+        output_du = DistributedInMemoryDataUnit("output-du", url=self.url,
+                                                pilot={"number_of_processes": self.parallelism})
         output_du.data=result_rdd
         return Future([output_du])
 
@@ -171,7 +172,8 @@ class DistributedInMemoryDataUnit(object):
         #group_data_string = grouped_data.map(lambda a: "(%d,%s)"%(a[0],[i for i in a[1]]))
         group_data_string = grouped_data.map(lambda a: "%s"%([str((a[0],i)) for i in a[1]]), number_of_compute_units)
         result_rdd=group_data_string.map(function_pointer, number_of_compute_units)
-        output_du = DistributedInMemoryDataUnit("output-du", url=self.url)
+        output_du = DistributedInMemoryDataUnit("output-du", url=self.url,
+                                                pilot={"number_of_processes": self.parallelism})
         output_du.data=result_rdd
         return Future(output_du)
 

@@ -42,10 +42,10 @@ class Future(object):
         pass
     
     
-    def result(self): 
-        """Return the value returned by the call. If the call hasn’t yet completed then this 
+    def result(self):
+        """Return the value returned by the call. If the call hasn’t yet completed then this
            method will wait for the result """
-        logger.debug("Future: Wait for %d Compute Units"%(len(self.compute_units)))  
+        logger.debug("Future: Wait for %d Compute Units"%(len(self.compute_units)))
         for cu in self.compute_units:
             cu.wait()
         
@@ -60,7 +60,7 @@ class InMemoryCoordination(object):
                  port=6379,
                  flushdb=False, 
                  pilot=None):
-                 
+
         self.redis_connection_pool = redis.ConnectionPool(host=hostname, port=6379, password=None, db=0)
         self.redis_client = redis.Redis(connection_pool=self.redis_connection_pool)
         self.redisHost= hostname
@@ -72,7 +72,7 @@ class InMemoryCoordination(object):
         self.pilot=pilot
         if flushdb:
             self.redis_client.flushdb()
-           
+
 
 
 class DistributedInMemoryDataUnit(object):  
@@ -100,11 +100,11 @@ class DistributedInMemoryDataUnit(object):
                 part_start = part_start + maxChunkSize
             else:
                 logger.debug("Loading last part %s-%s" % (part_start, part_end))
-                self.pipe.rpush(self.name, *data[part_start:part_end])            
+                self.pipe.rpush(self.name, *data[part_start:part_end])
                 part_start = part_end
-            self.pipe.execute()                           
+            self.pipe.execute()
 
-    
+
     def reload(self, data=[]):
         self.pipe.delete(self.name)
         self.len=0

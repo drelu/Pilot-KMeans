@@ -3,6 +3,7 @@
 .project
 work
 *.pyc
+.idea
 build
 dist
 VERSION
