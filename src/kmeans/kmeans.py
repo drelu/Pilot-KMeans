@@ -13,18 +13,12 @@ import threading
 import numpy as np
 import itertools
 import datetime
-<<<<<<< HEAD
-import pdb
-from distributed_inmem.dataunit import DistributedInMemoryDataUnit, InMemoryCoordination
-from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
-=======
 
 try:
     from distributed_inmem.dataunit import DistributedInMemoryDataUnit
     from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
 except:
     print "Please install BigJob!"
->>>>>>> master
 
 class KMeans(object):
 
