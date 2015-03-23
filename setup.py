@@ -49,7 +49,7 @@ def get_version():
 
 update_version()
     
-setup(name='Pilot-KMeans',
+setup(name='Pilot-InMemory',
       version=get_version(),
       description='A Pilot-based KMeans Implementation',
       author='Andre Luckow, et al.',

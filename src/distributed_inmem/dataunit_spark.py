@@ -68,18 +68,23 @@ class SparkTaskWrapper(object):
 
     def __init__(self, function=None, args=None):
         self.args = args
-        self.function = function
-        # dynamically load function reference using function name (string)
-        # parse out class and function name
-        classname = self.function.split(".")[0]
-        functionname = self.function.split(".")[1]
-        # get reference to calling module
-        frm = inspect.stack()
-        frm = frm[3]
-        mod = inspect.getmodule(frm[0])
-        #logger.debug("Calling module: " + str(mod))
-        class_pointer = getattr(mod, classname)
-        self.function_pointer = getattr(class_pointer, functionname)
+
+        if isinstance(function, str):
+            self.function = function
+            # dynamically load function reference using function name (string)
+            # parse out class and function name
+            classname = self.function.split(".")[0]
+            functionname = self.function.split(".")[1]
+            # get reference to calling module
+            frm = inspect.stack()
+            frm = frm[3]
+            mod = inspect.getmodule(frm[0])
+            #logger.debug("Calling module: " + str(mod))
+            class_pointer = getattr(mod, classname)
+            self.function_pointer = getattr(class_pointer, functionname)
+        else:
+            self.function_pointer=function
+
         print str(self.function_pointer)
 
 
@@ -94,12 +99,15 @@ class DistributedInMemoryDataUnit(object):
     """ In-Memory DU backed by a Spark RDD """
 
 
-    def __init__(self, name="test-dimdu", url="spark://localhost:7077", pilot=None):
+    def __init__(self, name="test-dimdu", url="spark://localhost:7077",
+                 pilot=None, sc=None):
         global spark_context
-        if spark_context==None:
+        if sc==None:
             #conf = SparkConf().setAppName("Pilot-Data-InMemory").setMaster(url)
             #spark_context = SparkContext(conf)
             spark_context = SparkContext(url, "Pilot-InMemory", sparkHome=os.environ["SPARK_HOME"])
+        else:
+            spark_context=sc
 
         self.parallelism=1
         if pilot!=None and pilot.has_key("number_of_processes"):
@@ -151,7 +159,7 @@ class DistributedInMemoryDataUnit(object):
         result_rdd = self.data.map(spark_map.execute)
         result_data = result_rdd.collect()
         print("Results of Map: " + str(result_data))
-        output_du = DistributedInMemoryDataUnit("output-du", url=self.url,
+        output_du = DistributedInMemoryDataUnit("output-du", sc=self.sc,
                                                 pilot={"number_of_processes": self.parallelism})
         output_du.data=result_rdd
         return Future([output_du])
@@ -172,7 +180,7 @@ class DistributedInMemoryDataUnit(object):
         #group_data_string = grouped_data.map(lambda a: "(%d,%s)"%(a[0],[i for i in a[1]]))
         group_data_string = grouped_data.map(lambda a: "%s"%([str((a[0],i)) for i in a[1]]), number_of_compute_units)
         result_rdd=group_data_string.map(function_pointer, number_of_compute_units)
-        output_du = DistributedInMemoryDataUnit("output-du", url=self.url,
+        output_du = DistributedInMemoryDataUnit("output-du", sc=self.sc,
                                                 pilot={"number_of_processes": self.parallelism})
         output_du.data=result_rdd
         return Future(output_du)

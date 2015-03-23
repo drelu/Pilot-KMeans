@@ -106,6 +106,7 @@ if __name__ == '__main__':
                     
         du_centers = DistributedInMemoryDataUnit("Centers-%d"%(iteration+1)).merge(new_centers)
         iteration_end = time.time()
+        print "*** Centers: " + str(du_centers.export())
         time_measures["Iteration-%d"%iteration] = iteration_end - iteration_start
              
     end = time.time()
