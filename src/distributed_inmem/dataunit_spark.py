@@ -102,12 +102,14 @@ class DistributedInMemoryDataUnit(object):
     def __init__(self, name="test-dimdu", url="spark://localhost:7077",
                  pilot=None, sc=None):
         global spark_context
-        if sc==None:
+        if sc==None and spark_context==None:
             #conf = SparkConf().setAppName("Pilot-Data-InMemory").setMaster(url)
             #spark_context = SparkContext(conf)
             spark_context = SparkContext(url, "Pilot-InMemory", sparkHome=os.environ["SPARK_HOME"])
         else:
             spark_context=sc
+
+        self.sc = spark_context
 
         self.parallelism=1
         if pilot!=None and pilot.has_key("number_of_processes"):
@@ -158,7 +160,7 @@ class DistributedInMemoryDataUnit(object):
         spark_map = SparkTaskWrapper(function, data)
         result_rdd = self.data.map(spark_map.execute)
         result_data = result_rdd.collect()
-        print("Results of Map: " + str(result_data))
+        #print("Results of Map: " + str(result_data))
         output_du = DistributedInMemoryDataUnit("output-du", sc=self.sc,
                                                 pilot={"number_of_processes": self.parallelism})
         output_du.data=result_rdd
@@ -166,20 +168,38 @@ class DistributedInMemoryDataUnit(object):
 
 
     def reduce(self, function, args=None, number_of_compute_units=1):
-        classname = function.split(".")[0]
-        functionname = function.split(".")[1]
-        # get reference to calling module
-        frm = inspect.stack()
-        frm = frm[2]
-        mod = inspect.getmodule(frm[0])
-        #logger.debug("Calling module: " + str(mod))
-        class_pointer = getattr(mod, classname)
-        function_pointer = getattr(class_pointer, functionname)
-        print str(function_pointer)
+
+        if isinstance(function, str):
+            classname = function.split(".")[0]
+            functionname = function.split(".")[1]
+            # get reference to calling module
+            frm = inspect.stack()
+            frm = frm[2]
+            mod = inspect.getmodule(frm[0])
+            #logger.debug("Calling module: " + str(mod))
+            class_pointer = getattr(mod, classname)
+            function_pointer = getattr(class_pointer, functionname)
+            print str(function_pointer)
+        else:
+            function_pointer=function
+
+        print self.data.collect()
+        print "****************************************************"
+
         grouped_data = self.data.groupByKey(number_of_compute_units)
+        #print grouped_data.collect()
+        print "****************************************************"
+
+        #group_data_string = grouped_data.map(lambda a: "(%s,%s)"%(a[0],str([i for i in a[1]])))
+
+        group_data_string = grouped_data.map(lambda a: "(%s,%s)"%(a[0], str(sorted(set(a[1])))))
+
         #group_data_string = grouped_data.map(lambda a: "(%d,%s)"%(a[0],[i for i in a[1]]))
-        group_data_string = grouped_data.map(lambda a: "%s"%([str((a[0],i)) for i in a[1]]), number_of_compute_units)
-        result_rdd=group_data_string.map(function_pointer, number_of_compute_units)
+        #group_data_string = grouped_data.map(lambda a: "%s"%([str((a[0],i)) for i in a[1]]), number_of_compute_units)
+        #print group_data_string.collect()
+        print "********* Apply Reduce Function"
+        result_rdd=group_data_string.flatMap(function_pointer, number_of_compute_units)
+        #print result_rdd.collect()
         output_du = DistributedInMemoryDataUnit("output-du", sc=self.sc,
                                                 pilot={"number_of_processes": self.parallelism})
         output_du.data=result_rdd
