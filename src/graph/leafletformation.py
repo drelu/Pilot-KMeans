@@ -76,33 +76,38 @@ def leafletFinder(atoms, cutoff=16.0, box=None, Nmax=None, adj=None):
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('topology', help="topology file")
-    parser.add_argument('trajectory', help="trajectory file")
-    parser.add_argument('--cutoff', type=float, default=16.,
-                        help="phosphates below the cutoff distance "
-                        "CUTOFF Angstrom are considered neighbors [16]")
-    parser.add_argument("--selection", default="name P*", 
-                        help="MDAnalysis selection string to select atoms "
-                        "in the lipid head group ['name P*']")
+    #parser = argparse.ArgumentParser(description=__doc__)
+    #parser.add_argument('topology', help="topology file")
+    #parser.add_argument('trajectory', help="trajectory file")
+    #parser.add_argument('--cutoff', type=float, default=16.,
+    #                    help="phosphates below the cutoff distance "
+    #                    "CUTOFF Angstrom are considered neighbors [16]")
+    #parser.add_argument("--selection", default="name P*", 
+    #                    help="MDAnalysis selection string to select atoms "
+    #                    "in the lipid head group ['name P*']")
 
     #topology = "AnnaDuncan/md_prod_12x12_lastframe.pdb"
     #trajectory = "AnnaDuncan/md_prod_12x12_everymicroS_pbcmolcenter.xtc"
+    topology = "/data/leafletfinder/large/63342lip_576TMprotein_nowat_start.pdb"
+    trajectory = "/data/leafletfinder/large/63342lip_576TMprotein_nowat_10us_1us_timestep_fixed.xtc"
 
-    args = parser.parse_args()
+    
+    #args = parser.parse_args()
 
-    u = MDAnalysis.Universe(args.topology, args.trajectory)
-    phosphates = u.atoms.selectAtoms(args.selection)
+    u = MDAnalysis.Universe(topology, trajectory)
+    phosphates = u.atoms.selectAtoms("name P*")
+    L = leafletFinder(phosphates, cutoff=16.)
+    
     # note that this can select multiple phosphates in one residue such as PIP2
     # which is not really a problem, just increases the problem size a bit
-    print("# Input topology/trajectory: {0} {1}".format(args.topology, args.trajectory))
-    print("# Head group atom selection: {}".format(args.selection))
-    print("# Number of lipids:          {}".format(phosphates.numberOfResidues()))
-    print("# Number of phosphates (P):  {}".format(phosphates.numberOfAtoms()))
+    #print("# Input topology/trajectory: {0} {1}".format(args.topology, args.trajectory))
+    #print("# Head group atom selection: {}".format(args.selection))
+    #print("# Number of lipids:          {}".format(phosphates.numberOfResidues()))
+    #print("# Number of phosphates (P):  {}".format(phosphates.numberOfAtoms()))
 
-    print("# [time(ps)] [N_leaflets] [N_lipids for the top 5 leaflets]")
-    for ts in u.trajectory:
-        L = leafletFinder(phosphates, cutoff=args.cutoff)
-        print("{0:9.1f} {1:3d} ".format(u.trajectory.time, len(L)), end='')
-        print(" ".join(["{0:5d}".format(g.numberOfResidues()) for g in L[:5]]))
+    #print("# [time(ps)] [N_leaflets] [N_lipids for the top 5 leaflets]")
+    #for ts in u.trajectory:
+    #    L = leafletFinder(phosphates, cutoff=args.cutoff)
+    #    print("{0:9.1f} {1:3d} ".format(u.trajectory.time, len(L)), end='')
+    #    print(" ".join(["{0:5d}".format(g.numberOfResidues()) for g in L[:5]]))
 
