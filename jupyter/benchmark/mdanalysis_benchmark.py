@@ -6,6 +6,7 @@ import numpy as np
 import time, os, sys, gc
 import datetime
 import logging
+import pyspark.mllib.linalg.distributed
 logger = logging.getLogger("py4j")
 logger.setLevel(logging.ERROR)
 
@@ -20,6 +21,8 @@ files=["../md_centered.xtc_95Atoms.np_txt",
        "../md_prod_12x12_everymicroS_pbcmolcenter.xtc_44784Atoms.np_txt", 
        "../vesicle_1_5M_373_stride1000.xtc_145746Atoms.np_txt"]
 
+
+NUMBER_EXECUTORS_SCENARIOS=[96]
 
 global coord_broadcast
 global cutoff
@@ -83,6 +86,32 @@ def benchmark_spark(coord, NUMBER_EXECUTORS):
     return result
 
 
+def benchmark_spark_cart(coord, NUMBER_EXECUTORS):
+    print "******************* RUN WITH %d EXECUTORS ***********"%NUMBER_EXECUTORS
+    pilotcompute_description = {
+        "service_url": "yarn-client://yarn.radical-cybertools.org",
+        "number_of_processes": NUMBER_EXECUTORS,
+        "physical_memory_per_process": "3G" 
+    }
+
+    print "SPARK HOME: %s"%os.environ["SPARK_HOME"]
+    print "PYTHONPATH: %s"%os.environ["PYTHONPATH"]
+
+    start = time.time()
+    pilot_spark = PilotSparkComputeService.create_pilot(pilotcompute_description=pilotcompute_description)
+    sc = pilot_spark.get_spark_context()
+    print "SparkStartup, %.2f"%(time.time()-start)
+    coord_matrix=pyspark.mllib.linalg.distributed.RowMatrix(sc.parallelize(coord, NUMBER_EXECUTORS))
+    row_rdd=coord_matrix.rows
+    start = time.time()
+    distances=  row_rdd.cartesian(row_rdd).\
+                map(lambda a: (a[0].squared_distance(a[1]))).\
+                filter(lambda a: a>15.0).\
+                collect()
+    print "ComputeDistance, %.2f"%(time.time()-start)
+
+
+
 def benchmark_mdanalysis():
     start = time.time()
     #distance_array(coord, coord, box=None)
@@ -106,7 +135,7 @@ if __name__ == "__main__":
         for file_name in files:
             print "Process: " + file_name
             coord = np.loadtxt(file_name, dtype='float32')
-            for i in [12, 24, 36, 48, 60, 72, 96]:
+            for i in NUMBER_EXECUTORS_SCENARIOS:
                 result=benchmark_spark(coord, i)
                 results.append(result)
                 f.write(result + "\n")
