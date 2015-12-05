@@ -6,21 +6,23 @@ import numpy as np
 import time, os, sys, gc
 import datetime
 import logging
-import pyspark.mllib.linalg.distributed
 logger = logging.getLogger("py4j")
 logger.setLevel(logging.ERROR)
 
 execfile("../util/init_spark.py")
+import pyspark.mllib.linalg.distributed
 from pilot_hadoop import PilotComputeService as PilotSparkComputeService
 
 RESULT_DIR="results"
 RESULT_FILE_PREFIX="mdanalysis-distance-spark-"
 HEADER_CSV="Scenario, NumberAtoms, NumberExecutors, Time"
 
-files=["../md_centered.xtc_95Atoms.np_txt", 
-       "../md_prod_12x12_everymicroS_pbcmolcenter.xtc_44784Atoms.np_txt", 
-       "../vesicle_1_5M_373_stride1000.xtc_145746Atoms.np_txt"]
+#files=["../md_centered.xtc_95Atoms.np_txt", 
+#       "../md_prod_12x12_everymicroS_pbcmolcenter.xtc_44784Atoms.np_txt", 
+#       "../vesicle_1_5M_373_stride1000.xtc_145746Atoms.np_txt"]
 
+DATA_PATH="/data/leafletfinder/synthetic/"
+files=[os.path.join(DATA_PATH, i) for i in os.listdir(DATA_PATH)]
 
 NUMBER_EXECUTORS_SCENARIOS=[96]
 
