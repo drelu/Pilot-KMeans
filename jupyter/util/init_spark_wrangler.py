@@ -11,7 +11,7 @@ else:
 
 #print "Init Spark: " + SPARK_HOME
 
-os.environ["PYSPARK_PYTHON"]="/home/01131/anaconda2/bin/python"
+os.environ["PYSPARK_PYTHON"]="/home/01131/tg804093/anaconda2/bin/python"
 os.environ["PYSPARK_DRIVER_PYTHON"]="ipython"
 os.environ["PYSPARK_DRIVER_PYTHON_OPTS"]="notebook"
 os.environ["PYTHONPATH"]= os.path.join(SPARK_HOME, "python")+":" + os.path.join(SPARK_HOME, "python/lib/py4j-0.8.2.1-src.zip")
