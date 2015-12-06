@@ -24,7 +24,7 @@ HEADER_CSV="Scenario, NumberAtoms, NumberExecutors, Time"
 DATA_PATH="/data/leafletfinder/synthetic/"
 files=[os.path.join(DATA_PATH, i) for i in os.listdir(DATA_PATH)]
 
-NUMBER_EXECUTORS_SCENARIOS=[96]
+NUMBER_EXECUTORS_SCENARIOS=[1]
 
 global coord_broadcast
 global cutoff
@@ -114,11 +114,12 @@ def benchmark_spark_cart(coord, NUMBER_EXECUTORS):
 
 
 
-def benchmark_mdanalysis():
+def benchmark_mdanalysis(coord, NUMBER_EXECUTORS=1):
     start = time.time()
     #distance_array(coord, coord, box=None)
     contact_matrix(coord, returntype="sparse")
-    print "ComputeDistanceMDAnalysis, %d, %.2f"%(len(coord), (time.time()-start))
+    result="ComputeDistanceMDAnalysisSparse, %d, %.2f"%(len(coord), (time.time()-start))
+    return result
        
 
 if __name__ == "__main__":       
@@ -138,7 +139,8 @@ if __name__ == "__main__":
             print "Process: " + file_name
             coord = np.loadtxt(file_name, dtype='float32')
             for i in NUMBER_EXECUTORS_SCENARIOS:
-                result=benchmark_spark(coord, i)
+                #result=benchmark_spark(coord, i)
+                result=benchmark_mdanalysis(coord, i)
                 results.append(result)
                 f.write(result + "\n")
                 f.flush()
