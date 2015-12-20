@@ -5,13 +5,14 @@ from scipy.spatial.distance import cdist
 import numpy as np
 import time, os, sys, gc
 import datetime
+import tensorflow as tf
 import logging
 logger = logging.getLogger("py4j")
 logger.setLevel(logging.ERROR)
 
-execfile("../util/init_spark.py")
-import pyspark.mllib.linalg.distributed
-from pilot_hadoop import PilotComputeService as PilotSparkComputeService
+#execfile("../util/init_spark.py")
+#import pyspark.mllib.linalg.distributed
+#from pilot_hadoop import PilotComputeService as PilotSparkComputeService
 
 RESULT_DIR="results"
 RESULT_FILE_PREFIX="mdanalysis-distance-spark-"
@@ -22,6 +23,7 @@ HEADER_CSV="Scenario, NumberAtoms, NumberExecutors, Time"
 #       "../vesicle_1_5M_373_stride1000.xtc_145746Atoms.np_txt"]
 
 DATA_PATH="/data/leafletfinder/synthetic/"
+DATA_PATH="../data/mdanalysis/synthetic/traj"
 files=[os.path.join(DATA_PATH, i) for i in os.listdir(DATA_PATH)]
 
 NUMBER_EXECUTORS_SCENARIOS=[1]
@@ -120,6 +122,21 @@ def benchmark_mdanalysis(coord, NUMBER_EXECUTORS=1):
     contact_matrix(coord, returntype="sparse")
     result="ComputeDistanceMDAnalysisSparse, %d, %.2f"%(len(coord), (time.time()-start))
     return result
+
+
+def benchmark__tf(coord):
+    start = time.time()
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    matrix1 = tf.convert_to_tensor(coord.astype("float32"))
+    matrix_extend=tf.expand_dims(matrix1, 1)
+    dist_matrix=tf.sub(matrix_extend, matrix1)
+    dist_matrix_pow=tf.pow(dist_matrix, 2)
+    dist_matrix_pow_red=tf.reduce_sum(dist_matrix_pow, 2)
+    dist_matrix_euc=tf.sqrt(dist_matrix_pow_red)
+    rc=sess.run(dist_matrix_euc)
+    result="ComputeDistanceTensorflow, %d, %.2f"%(len(coord), (time.time()-start))
+    sess.close()
+    return result
        
 
 if __name__ == "__main__":       
@@ -141,6 +158,7 @@ if __name__ == "__main__":
             for i in NUMBER_EXECUTORS_SCENARIOS:
                 #result=benchmark_spark(coord, i)
                 result=benchmark_mdanalysis(coord, i)
+                result=benchmark__tf(coord)
                 results.append(result)
                 f.write(result + "\n")
                 f.flush()
