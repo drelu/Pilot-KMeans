@@ -5,7 +5,7 @@ from scipy.spatial.distance import cdist
 import numpy as np
 import time, os, sys, gc
 import datetime
-import tensorflow as tf
+#import tensorflow as tf
 import logging
 logger = logging.getLogger("py4j")
 logger.setLevel(logging.ERROR)
@@ -23,8 +23,10 @@ HEADER_CSV="Scenario, NumberAtoms, NumberExecutors, Time"
 #       "../vesicle_1_5M_373_stride1000.xtc_145746Atoms.np_txt"]
 
 DATA_PATH="/data/leafletfinder/synthetic/"
-DATA_PATH="../data/mdanalysis/synthetic/traj"
+DATA_PATH="../../data/mdanalysis/synthetic/traj/dense"
 files=[os.path.join(DATA_PATH, i) for i in os.listdir(DATA_PATH)]
+
+#files=["../../data/mdanalysis/synthetic/traj/40000.np_txt"]
 
 NUMBER_EXECUTORS_SCENARIOS=[1]
 
@@ -115,8 +117,15 @@ def benchmark_spark_cart(coord, NUMBER_EXECUTORS):
     print "ComputeDistance, %.2f"%(time.time()-start)
 
 
+def benchmark_mdanalysis_dense(coord, NUMBER_EXECUTORS=1):
+    start = time.time()
+    #distance_array(coord, coord, box=None)
+    contact_matrix(coord)
+    result="ComputeDistanceMDAnalysisDense, %d, %.2f"%(len(coord), (time.time()-start))
+    return result
 
-def benchmark_mdanalysis(coord, NUMBER_EXECUTORS=1):
+
+def benchmark_mdanalysis_sparse(coord, NUMBER_EXECUTORS=1):
     start = time.time()
     #distance_array(coord, coord, box=None)
     contact_matrix(coord, returntype="sparse")
@@ -137,6 +146,31 @@ def benchmark__tf(coord):
     result="ComputeDistanceTensorflow, %d, %.2f"%(len(coord), (time.time()-start))
     sess.close()
     return result
+
+
+def compute_distance_tf_batch(coord, batch_size=500):
+    start_time = time.time()
+    num_batches = len(coord)/batch_size
+    sess = tf.Session(config=tf.ConfigProto())
+    summary_writer = tf.train.SummaryWriter("log", graph_def=sess.graph_def)   
+    matrix2 = tf.convert_to_tensor(coord.astype("float32"))
+    matrix1_splits = tf.split(0, num_batches, matrix2)
+    edges=[]
+    for idx, split in enumerate(matrix1_splits):
+        matrix1 = split
+        matrix_extend=tf.expand_dims(matrix1, 1)
+        dist_matrix=tf.sub(matrix_extend, matrix2)
+        dist_matrix_pow=tf.pow(dist_matrix, 2)
+        dist_matrix_pow_red=tf.reduce_sum(dist_matrix_pow, 2)
+        dist_matrix_euc=tf.sqrt(dist_matrix_pow_red)>cutoff
+        dist_custoff_true=tf.where(dist_matrix_euc)        
+        #edges.append(sess.run(dist_matrix_euc))
+        rc = sess.run(dist_custoff_true)
+        edges.append(rc)
+        #summary_writer.add_summary(rc, idx)
+    sess.close()    
+    result="ComputeDistanceTensorflow, %d, %.2f, %d, GPU"%(len(coord), (time.time()-start_time), batch_size)
+    return (result, edges)
        
 
 if __name__ == "__main__":       
@@ -157,12 +191,11 @@ if __name__ == "__main__":
             coord = np.loadtxt(file_name, dtype='float32')
             for i in NUMBER_EXECUTORS_SCENARIOS:
                 #result=benchmark_spark(coord, i)
-                result=benchmark_mdanalysis(coord, i)
-                result=benchmark__tf(coord)
+                result=benchmark_mdanalysis_dense(coord, i)
+                #result=benchmark__tf_batch(coord, 500)
                 results.append(result)
                 f.write(result + "\n")
-                f.flush()
-            
+                f.flush()            
             del coord
             gc.collect()
 
