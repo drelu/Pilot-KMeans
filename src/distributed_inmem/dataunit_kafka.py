@@ -46,7 +46,7 @@ class Future(object):
     
     
     def result(self):
-        """Return the value returned by the call. If the call hasn’t yet completed then this
+        """Return the value returned by the call. If the call hasn't yet completed then this
            method will wait for the result """
         logger.debug("Future: Wait for %d Compute Units"%(len(self.compute_units)))
         for cu in self.compute_units:
@@ -65,24 +65,27 @@ class DistributedInMemoryDataUnit(object):
         DU is mapped to a topic with the same name in Kafka
     """
             
-    def __init__(self, name="test-dimdu", url='zookeeper://localhost:2181', pilot=None):
+    def __init__(self, name="test-dimdu", url='zookeeper://localhost:2181', pilot=None, mini_batch_size=10):
         """Broker_URL: """
         #Connection to Broker
         url_host_port=urlparse.urlparse(url).netloc
         self.client = KafkaClient(zookeeper_hosts=url_host_port)
-        topic = client.topics[name]
-        consumer = topic.get_simple_consumer()
-        producer = topic.get_sync_producer()
+        self.topic = self.client.topics[name]
+        self.consumer = self.topic.get_simple_consumer()
+        self.producer = self.topic.get_sync_producer()
 
         # Instance variables
         self.pilot = pilot
         self.name=name
         self.data = []
         self.len = 0
+        self.mini_batch_size=mini_batch_size
 
     def load(self, data=[]):
         data = list(data)        
         self.len = len(data)
+        for message in data:
+            self.producer.produce(message.strip())
 
 
     def reload(self, data=[]):
@@ -95,17 +98,15 @@ class DistributedInMemoryDataUnit(object):
 
 
     def map_pilot(self, function, args, 
-                  partition_prefix="map-part",  
-                  number_of_compute_units=1,
+                  number_of_compute_units=None,
                   number_of_cores_per_compute_unit=1):        
         """ Execute map function using a set of CUs on the Pilot 
             TODO: add partitioning
         """
-        prefix = partition_prefix + "-" + str(uuid.uuid4())[:8]
-        number_of_lines_per_du=self.len/number_of_compute_units
-        if self.len%number_of_compute_units>0:
-            number_of_lines_per_du= number_of_lines_per_du + 1
-        partition_start = 0
+        partitions=self.topic.partitions
+        if number_of_compute_units==None:
+            number_of_compute_units=len(partitions)
+
         cus=[]
         for i in range(0, number_of_compute_units):
             if partition_start + number_of_lines_per_du < self.len:
@@ -150,7 +151,7 @@ class DistributedInMemoryDataUnit(object):
         # start compute unit
         compute_unit_description = {
             "executable": "python",
-            "arguments": ["-m", "distributed_inmem.dataunit", 
+            "arguments": ["-m", "distributed_inmem.dataunit_kafka",
                           "-n", self.name,  
                           "-c", self.df.redisHost,
                           "-m", "kmeans.kmeans", 
@@ -166,21 +167,31 @@ class DistributedInMemoryDataUnit(object):
         return future
         
 
-    def map(self, function, args, start=0, end=None):
-        if end==None:
-            end = self.df.redis_client.llen(self.name)
-        points = self.df.redis_client.lrange(self.name, start, end)
+    def map(self, module_name, function_name, args=None, start=0, end=None):
+
+        map_function=self.get_function_pointer(module_name=module_name, function_name=function_name)
+        message_list = []
+        for message in self.consumer:
+            if message is not None:
+                print message.offset, message.value
+                message_list.append(message)
+
+            if len(message_list)>self.mini_batch_size:
+                break
+
         result = []
-        for p in points:
+
+
+        for m in message_list:
             if args==None:
-                result.append(function(p))
-            else: 
-                # check weather arg is an DU that needs to get loaded
-                if type(args)==types.StringType and self.df.redis_client.exists(args):
-                    args = DistributedInMemoryDataUnit(name=args, coordination=self.df).export()
-                if args.__class__.__name__==DistributedInMemoryDataUnit.__name__:
-                    args = args.export()
-                result.append(function(p, args))
+                result.append(map_function(m))
+            # else:
+            #     # check weather arg is an DU that needs to get loaded
+            #     if type(args)==types.StringType and self.df.redis_client.exists(args):
+            #         args = DistributedInMemoryDataUnit(name=args, coordination=self.df).export()
+            #     if args.__class__.__name__==DistributedInMemoryDataUnit.__name__:
+            #         args = args.export()
+            #     result.append(function(m, args))
         return result
 
 
@@ -229,16 +240,10 @@ class DistributedInMemoryDataUnit(object):
         
     
     def export(self):
-        end = self.df.redis_client.llen(self.name)
-        return self.df.redis_client.lrange(self.name, 0, end)
+        pass
      
-    
-    @staticmethod
-    def flushdb():
-        redis_client = redis.Redis(host="localhost", port=6379, password=None, db=0)
-        redis_client.flushdb()
 
-    
+
     ###########################################################################
     # Private
     def _get_output_du(self, prefix):
@@ -253,7 +258,14 @@ class DistributedInMemoryDataUnit(object):
         dus = self._get_output_du(prefix)
         return dus[0]
    
-
+    @staticmethod
+    def get_function_pointer(module_name="distributed_inmem.dataunit_kafka", function_name=""):
+        mod = importlib.import_module(module_name)
+        classname = function_name.split(".")[0]
+        functionname = function_name.split(".")[1]
+        class_pointer = getattr(mod, classname)
+        function_pointer = getattr(class_pointer, functionname)
+        return function_pointer
 
 
 if __name__ == '__main__':
@@ -265,7 +277,7 @@ if __name__ == '__main__':
     print "Start worker task for distributed in-memory dataunit"
     parser = argparse.ArgumentParser(add_help=True, description="""DistributedInMemoryDataUnit Startup Utility""")
     
-    parser.add_argument('--coordination', '-c', default="kafka://localhost")
+    parser.add_argument('--coordination', '-c', default="zookeeper://localhost:2818")
     parser.add_argument('--password', '-p', default="")
     parser.add_argument('--name', '-n')
     parser.add_argument('--partition_start', '-ps')
@@ -288,10 +300,10 @@ if __name__ == '__main__':
         print "Error! Please specify module"
         sys.exit(-1)
         
-    df = InMemoryCoordination(hostname=parsed_arguments.coordination)
-    
+
     name = parsed_arguments.name
-    du = DistributedInMemoryDataUnit(name=name, coordination=df)
+    kafka_url = parsed_arguments.coordination
+    du = DistributedInMemoryDataUnit(name=name, url=kafka_url)
     module = parsed_arguments.module
     args = None
     if parsed_arguments.args!=None:
@@ -306,11 +318,7 @@ if __name__ == '__main__':
         
     map_reduce_result = []
     if map_function!=None:
-        classname = map_function.split(".")[0]
-        functionname = map_function.split(".")[1]
-        class_pointer = getattr(mod, classname)
-        function_pointer = getattr(class_pointer, functionname)
-        map_reduce_result = du.map(function_pointer, args, int(parsed_arguments.partition_start), int(parsed_arguments.partition_end))
+        map_reduce_result = du.map(module, map_function, args, int(parsed_arguments.partition_start), int(parsed_arguments.partition_end))
         print(str(map_reduce_result))
         if parsed_arguments.output_du_prefix!=None:
             prefix = parsed_arguments.output_du_prefix
@@ -320,7 +328,7 @@ if __name__ == '__main__':
             for key, group in itertools.groupby(map_reduce_result, lambda x: x[0]):
                 partition = prefix+":"+str(key)
                 if not dus.has_key(partition):
-                    dus[partition] = DistributedInMemoryDataUnit(name=partition, coordination=df)
+                    dus[partition] = DistributedInMemoryDataUnit(name=partition)
                 dus[partition].load(group)
     elif reduce_function!=None:
         classname = reduce_function.split(".")[0]
@@ -333,5 +341,5 @@ if __name__ == '__main__':
             prefix = parsed_arguments.output_du_prefix
             du_name = prefix + "-" + name
             print "Export result to DU:" + prefix + "-" + du_name
-            du = DistributedInMemoryDataUnit(name=du_name, coordination=df)
+            du = DistributedInMemoryDataUnit(name=du_name)
             du.load([map_reduce_result])    

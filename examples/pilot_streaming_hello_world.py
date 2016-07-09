@@ -7,16 +7,38 @@ import threading
 import numpy as np
 import itertools
 import datetime
-
+import traceback
 
 try:
-    from distributed_inmem.dataunit_kafka import DistributedInMemoryDataUnit
     from pilot import PilotComputeService, PilotCompute, ComputeUnit, State
-except:
+    from distributed_inmem.dataunit_kafka import DistributedInMemoryDataUnit
+except  Exception as e:
     print "Please install BigJob!"
 
 
-###################################################################################################
+
+
+def start_pilot(pilot_compute_description=None):
+    COORDINATION_URL = "redis://localhost:6379"
+    pilot_compute_service = PilotComputeService(coordination_url=COORDINATION_URL)
+    if pilot_compute_description==None:
+        pilot_compute_description = {
+            "service_url": 'fork://localhost',
+            "number_of_processes": 2,
+            "working_directory": os.getcwd() + "/work/",
+        }
+    pilot = pilot_compute_service.create_pilot(pilot_compute_description=pilot_compute_description)
+    return pilot
+
+
+class MyClass(object):
+
+    @staticmethod
+    def add_points(data):
+        return 1
+
+
+##################################################################################
 if __name__ == '__main__':
 
     run_timestamp=datetime.datetime.now()
@@ -37,32 +59,17 @@ if __name__ == '__main__':
 
 
     logger.debug("Create Data Unit for Publishing (Producer)")
-    f = open("examples/data/data_20points.csv")
+    f = open("data/data_20points.csv")
     points = f.readlines()
     f.close()
     du_points = DistributedInMemoryDataUnit("Points", pilot=pilot)
     du_points.load(points)
-
-
-
-
-
     end_data_load = time.time()
     time_measures["DataLoadTime"] = end_data_load-end_start_pilot
 
-    for iteration in range(0,NUM_ITERATIONS):
-        iteration_start = time.time()
-        future = du_points.map_pilot("KMeans.closestPoint", du_centers.name, number_of_compute_units=2)
-        output_dus = future.result()
-        new_centers = []
-        for du in output_dus:
-            future=du.reduce_pilot("KMeans.averagePoints")
-            result_du = future.result()
-            new_centers.append(result_du)
-
-        du_centers = DistributedInMemoryDataUnit("Centers-%d"%(iteration+1)).merge(new_centers)
-        iteration_end = time.time()
-        time_measures["Iteration-%d"%iteration] = iteration_end - iteration_start
+    iteration_start = time.time()
+    future = du_points.map(module_name=__name__, function_name="MyClass.add_points")
+    output_dus = future.result()
 
     end = time.time()
     time_measures["Runtime"] = end-start
