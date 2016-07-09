@@ -1,5 +1,5 @@
 '''
-Spark In-Memory DataUnit
+Distributed In-Memory DataUnit (Implemented on Spark)
 
 @author: Andre Luckow
 '''

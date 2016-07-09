@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<component jdk="Python 2.7.10 (~/anaconda/bin/python)" jdk_type="Python SDK">
+<component jdk="python">
 	<exclude-output/>
 	<contentEntry url="file://$MODULE_DIR$"/>
 </component>
