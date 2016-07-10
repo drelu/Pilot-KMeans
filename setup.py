@@ -5,7 +5,6 @@ import sys
 
 #import ez_setup
 #ez_setup.use_setuptools()
-
 from setuptools import setup, find_packages
 
 import subprocess
@@ -51,7 +50,7 @@ update_version()
     
 setup(name='Pilot-InMemory',
       version=get_version(),
-      description='A Pilot-based KMeans Implementation',
+      description='Pilot-Job Extension for In-Memory and Stream Computing',
       author='Andre Luckow, et al.',
       author_email='aluckow@cct.lsu.edu',
       url='https://github.com/drelu/Pilot-KMeans',
@@ -61,8 +60,8 @@ setup(name='Pilot-InMemory',
                     'Topic :: Utilities',
                     ],
       platforms = ('Unix', 'Linux', 'Mac OS'),
-      package_dir = {'':'src'},
-      packages=['kmeans', 'distributed_inmem'],
+      package_dir = {'':'src', 'basic':'examples'},
+      packages=['distributed_inmem', 'basic'],
       include_package_data=True,
       # data files for easy_install
       data_files = [('', ['README.md', 'README.md']), 
