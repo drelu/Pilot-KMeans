@@ -70,6 +70,6 @@ setup(name='Pilot-InMemory',
       # data files for pip
       package_data = {},
 
-      install_requires=['bigjob2', 'argparse'],
+      install_requires=['argparse'],
       entry_points = { }
 )

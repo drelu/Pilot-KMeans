@@ -4,7 +4,7 @@ Created on Jul 5, 2014
 
 @author: Andre Luckow
 '''
-import redis
+import saga
 from pykafka import KafkaClient
 import argparse
 import urlparse
@@ -88,7 +88,8 @@ class DistributedInMemoryDataUnit(object):
         data = list(data)        
         self.len = len(data)
         for message in data:
-            self.producer.produce(str(message).strip())
+            logger.debug("Publish: %s"%message)
+            self.producer.produce(str(message))
 
 
     def reload(self, data=[]):
@@ -118,10 +119,10 @@ class DistributedInMemoryDataUnit(object):
             # start compute unit
             compute_unit_description = {
                 "executable": "python",
-                "arguments": ["-m", module_name,
+                "arguments": ["-m", "distributed_inmem.dataunit_kafka",
                               "-n", self.name,  
                               "-c", self.url,
-                              "-m", module_name,
+                              "--module_name", module_name,
                               "--map_function", function_name,
                               "--args",  args,
                               "--output_du_prefix", output_du_name],
@@ -149,8 +150,8 @@ class DistributedInMemoryDataUnit(object):
         results=[]
         map_function=self.get_function_pointer(module_name=module_name, function_name=function_name)
         for m in data:
-            if args==None:
-                results.append(map_function(m))
+            print("Apply Function %s to %s"%(str(map_function), m))
+            results.append(map_function(m))
             # else:
             #     # check weather arg is an DU that needs to get loaded
             #     if type(args)==types.StringType and self.df.redis_client.exists(args):
@@ -158,6 +159,7 @@ class DistributedInMemoryDataUnit(object):
             #     if args.__class__.__name__==DistributedInMemoryDataUnit.__name__:
             #         args = args.export()
             #     result.append(function(m, args))
+        print "Completed Map Phase. Results: " + str(results)
         return results
 
 
@@ -177,6 +179,7 @@ class DistributedInMemoryDataUnit(object):
             if (len(message_list) % self.batch_size) == 0:
                 output_data=self.map(message_list, module_name, function_name, args, start, end)
                 self._update_output_du(output_du_name, output_data)
+                message_list=[]
 
 
     # def reduce(self, function, args):
@@ -230,29 +233,27 @@ class DistributedInMemoryDataUnit(object):
             pass
 
         f = open(os.path.join(path, "output_data"), "w")
-        for i in self.consumer.consume(block=False):
-            f.write(str(i))
+
+        tmp_consumer=self.topic.get_simple_consumer(consumer_timeout_ms=1 * 1000)
+        max_tries=3
+        counter=0
+        for msg in tmp_consumer:
+            if msg!=None:
+                f.write(str(msg.value) + "\n")
+            else:
+                counter = counter + 1
+            if counter>max_tries: break
         f.close()
 
 
-     
-
     ###########################################################################
     # Private
-
     def _update_output_du(self, du_name, data):
+        logger.debug("Create Output DU: %s"%du_name)
         du = DistributedInMemoryDataUnit(url=self.url, name=du_name)
         du.load(data)
 
 
-    def _get_output_du(self, prefix):
-        names=self.df.redis_client.keys(prefix+"*")
-        dus = []
-        for n in names:
-            du = DistributedInMemoryDataUnit(name=n, coordination=self.df)
-            dus.append(du)
-        return dus
-    
     def _get_reduce_output(self, prefix):
         dus = self._get_output_du(prefix)
         return dus[0]
@@ -283,7 +284,7 @@ if __name__ == '__main__':
     parser.add_argument('--name', '-n')
     parser.add_argument('--partition_start', '-ps')
     parser.add_argument('--partition_end', '-pe')      
-    parser.add_argument('--module', '-m')
+    parser.add_argument('--module_name', '-m')
     parser.add_argument('--map_function', '-mf')
     parser.add_argument('--reduce_function', '-rf')    
     parser.add_argument('--args', '-a')        
@@ -298,14 +299,14 @@ if __name__ == '__main__':
     elif parsed_arguments.map_function==None and parsed_arguments.reduce_function==None:
         print "Error! Please specify map or reduce function"
         sys.exit(-1)
-    elif parsed_arguments.module==None:
+    elif parsed_arguments.module_name==None:
         print "Error! Please specify module"
         sys.exit(-1)
         
 
     name = parsed_arguments.name
     kafka_url = parsed_arguments.coordination
-    module = parsed_arguments.module
+    module_name = parsed_arguments.module_name
     args = None
     if parsed_arguments.args!=None:
         args = parsed_arguments.args
@@ -320,7 +321,7 @@ if __name__ == '__main__':
     du = DistributedInMemoryDataUnit(name=name, url=kafka_url, batch_size=batch_size)
     map_reduce_result = []
     if map_function!=None:
-        du.streaming_map(module, map_function, args, parsed_arguments.partition_start, parsed_arguments.partition_end, output_du_name)
+        du.streaming_map(module_name, map_function, args, parsed_arguments.partition_start, parsed_arguments.partition_end, output_du_name)
         ## Wait.... streams until process is killed
     else:
         print "Only Map functions supported for Streaming Data Units."

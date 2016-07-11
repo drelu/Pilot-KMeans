@@ -44,7 +44,7 @@ class StreamingKMeans(object):
 
     @staticmethod
     def cluster_points(data):
-        return 1
+        return "1"
 
 
 ##################################################################################
@@ -79,7 +79,7 @@ if __name__ == '__main__':
 
     iteration_start = time.time()
     ## returns list of compute units
-    compute_units = du_points.map_pilot(module_name=__name__,
+    compute_units = du_points.map_pilot(module_name="basic.pilot_streaming_hello_world",
                                         function_name="StreamingKMeans.cluster_points",
                                         args=None,
                                         number_of_compute_units=None,
