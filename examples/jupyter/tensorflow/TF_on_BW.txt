@@ -1,0 +1,288 @@
+Bluewaters:
+
+
+CUDA: CUDA Toolkit 7.5
+
+http://developer.download.nvidia.com/compute/cuda/7.5/Prod/local_installers/cuda_7.5.18_linux.run
+
+cuDNN: https://developer.nvidia.com/rdp/cudnn-download
+
+luckow@h2ologin2:~> module show cudatoolkit
+-------------------------------------------------------------------
+/opt/cray/modulefiles/cudatoolkit/7.0.28-1.0502.10742.5.1:
+
+conflict	 cuda
+conflict	 cudatools
+conflict	 cudatoolkit
+conflict	 libsci_acc/1.0.00
+conflict	 libsci_acc/1.0.01
+conflict	 libsci_acc/1.0.02
+conflict	 libsci_acc/3.0.2
+setenv		 CRAY_CUDATOOLKIT_VERSION 7.0.28-1.0502.10742.5.1
+setenv		 CRAY_CUDATOOLKIT_DIR /opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1
+setenv		 CRAY_CUDATOOLKIT_INCLUDE_OPTS -I/opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/include -I/opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/extras/CUPTI/include -I/opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/extras/Debugger/include
+setenv		 CRAY_CUDATOOLKIT_POST_LINK_OPTS -L/opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/lib64 -L/opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/extras/CUPTI/lib64 -Wl,--as-needed -Wl,-lcupti -Wl,-lcudart -Wl,--no-as-needed -L/opt/cray/nvidia/default/lib64 -lcuda
+prepend-path	 CRAY_LD_LIBRARY_PATH /opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/lib64:/opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/extras/CUPTI/lib64
+setenv		 CUDATOOLKIT_HOME /opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1
+setenv		 XTPE_LINK_TYPE dynamic
+setenv		 CRAYPE_LINK_TYPE dynamic
+prepend-path	 PATH /opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/bin:/opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/libnvvp
+prepend-path	 MANPATH /opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/doc/man
+prepend-path	 PKG_CONFIG_PATH /opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/lib64/pkgconfig
+prepend-path	 PE_PKGCONFIG_LIBS cray-cudatoolkit
+-------------------------------------------------------------------
+
+
+Bazel:
+
+export JAVA_HOME=/opt/java/jdk1.8.0_51/
+export JAVA_VERSION=1.8
+./compile.sh
+
+# Tensorflow:
+
+git clone --recurse-submodules https://github.com/tensorflow/tensorflow
+
+
+
+Modify 
+
+add to line 10 of tensorflow/tensorflow.bzl
+
+version = '0.2.2'
+
+https://github.com/tensorflow/tensorflow/issues/2109
+
+
+
+BW:
+
+
+./configure
+
+CUDA: /opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/
+CUDNN: /u/sciteam/luckow/sw/cuda/
+
+
+
+https://github.com/tensorflow/tensorflow/issues/1372
+
+Adjust file:
+
+vi $TENSORFLOW_HOME/third_party/gpus/crosstool/CROSSTOOL
+
+tool_path { name: "cpp" path: "/opt/gcc/5.3.0/bin/c++" }
+tool_path { name: "dwp" path: "/usr/bin/dwp" }
+tool_path { name: "gcc" path: "/opt/gcc/5.3.0/bin/gcc" }
+
+
+
+
+
+# Build
+bazel build -c opt --config=cuda --verbose_failures //tensorflow/tools/pip_package:build_pip_package
+
+bazel build -c opt --config=cuda //tensorflow/tools/pip_package:build_pip_package
+
+bazel-bin/tensorflow/tools/pip_package/build_pip_package /tmp/tensorflow_pkg
+
+# The name of the .whl file will depend on your platform.
+$ pip install /tmp/tensorflow_pkg/tensorflow-0.8.0-py2-none-linux_x86_64.whl
+
+
+https://github.com/tensorflow/tensorflow/issues/1074
+
+vi ./tensorflow/contrib/cmake/external/jpeg.cmake#
+
+
+--
+Adjust protobuf.bzl to find correct g++ lib
+
+def _proto_gen_impl(ctx):
+  """General implementation for generating protos"""
+  srcs = ctx.files.srcs
+  deps = []
+  deps += ctx.files.srcs
+  gen_dir = _GenDir(ctx)
+  if gen_dir:
+    import_flags = ["-I" + gen_dir]
+  else:
+    import_flags = ["-I."]
+
+  for dep in ctx.attr.deps:
+    import_flags += dep.proto.import_flags
+    deps += dep.proto.deps
+
+  args = []
+  if ctx.attr.gen_cc:
+    args += ["--cpp_out=" + ctx.var["GENDIR"] + "/" + gen_dir]
+  if ctx.attr.gen_py:
+    args += ["--python_out=" + ctx.var["GENDIR"] + "/" + gen_dir]
+
+  if ctx.executable.grpc_cpp_plugin:
+    args += ["--plugin=protoc-gen-grpc=" + ctx.executable.grpc_cpp_plugin.path]
+    args += ["--grpc_out=" + ctx.var["GENDIR"] + "/" + gen_dir]
+
+  if args:
+    ctx.action(
+        inputs=srcs + deps,
+        outputs=ctx.outputs.outs,
+        arguments=args + import_flags + [s.path for s in srcs],
+        env={"LD_LIBRARY_PATH": "/opt/gcc/5.3.0/snos/lib64"},
+        executable=ctx.executable.protoc,
+
+
+
+
+
+
+
+
+
+
+
+diff --git a/tensorflow/tensorflow.bzl b/tensorflow/tensorflow.bzl
+index 8c92443..d5e7472 100644
+--- a/tensorflow/tensorflow.bzl
++++ b/tensorflow/tensorflow.bzl
+@@ -627,13 +627,14 @@ def tf_generate_proto_text_sources(name, srcs_relative_dir, srcs):
+         name = name,
+         srcs = srcs,
+         outs = out_hdrs + out_srcs,
+-        cmd = "$(location //tensorflow/tools/proto_text:gen_proto_text_functions) " +
++        cmd = "export LD_LIBRARY_PATH=/opt/gcc/5.3.0/snos/lib64 && $(location //tensorflow/tools/proto_text:gen_proto_text_functions) " +
+               "$(@D) " + srcs_relative_dir + " $(SRCS)",
+         tools = ["//tensorflow/tools/proto_text:gen_proto_text_functions"],
+     )
+   return struct(hdrs=out_hdrs, srcs=out_srcs)
+
+ def tf_genrule_cmd_append_to_srcs(to_append):
+-    return ("cat $(SRCS) > $(@) && " +
++    return ("export LD_LIBRARY_PATH=/opt/gcc/5.3.0/snos/lib64 && cat $(SRCS) > $(@) && " +
++            "echo export LD_LIBRARY_PATH=/opt/gcc/5.3.0/snos/lib64 >> $(@) && "  +
+             "echo >> $(@) && " +
+             "echo " + to_append + " >> $(@)")
+
+
+---
+
+
+/u/sciteam/luckow/src/tensorflow/third_party/gpus/crosstool/clang/bin/crosstool_wrapper_driver_is_not_gcc
+
+
+luckow@h2ologin2:~/src/tensorflow> cat patches_bw.txt
+diff --git a/google/protobuf b/google/protobuf
+--- a/google/protobuf
++++ b/google/protobuf
+@@ -1 +1 @@
+-Subproject commit fb714b3606bd663b823f6960a73d052f97283b74
++Subproject commit fb714b3606bd663b823f6960a73d052f97283b74-dirty
+diff --git a/tensorflow/tensorflow.bzl b/tensorflow/tensorflow.bzl
+index 8c92443..d5e7472 100644
+--- a/tensorflow/tensorflow.bzl
++++ b/tensorflow/tensorflow.bzl
+@@ -627,13 +627,14 @@ def tf_generate_proto_text_sources(name, srcs_relative_dir, srcs):
+         name = name,
+         srcs = srcs,
+         outs = out_hdrs + out_srcs,
+-        cmd = "$(location //tensorflow/tools/proto_text:gen_proto_text_functions) " +
++        cmd = "export LD_LIBRARY_PATH=/opt/gcc/5.3.0/snos/lib64 && $(location //tensorflow/tools/proto_text:gen_proto_text_functions) " +
+               "$(@D) " + srcs_relative_dir + " $(SRCS)",
+         tools = ["//tensorflow/tools/proto_text:gen_proto_text_functions"],
+     )
+   return struct(hdrs=out_hdrs, srcs=out_srcs)
+
+ def tf_genrule_cmd_append_to_srcs(to_append):
+-    return ("cat $(SRCS) > $(@) && " +
++    return ("export LD_LIBRARY_PATH=/opt/gcc/5.3.0/snos/lib64 && cat $(SRCS) > $(@) && " +
++            "echo export LD_LIBRARY_PATH=/opt/gcc/5.3.0/snos/lib64 >> $(@) && "  +
+             "echo >> $(@) && " +
+             "echo " + to_append + " >> $(@)")
+diff --git a/third_party/gpus/crosstool/CROSSTOOL b/third_party/gpus/crosstool/CROSSTOOL
+index 8db81a9..35064d5 100644
+--- a/third_party/gpus/crosstool/CROSSTOOL
++++ b/third_party/gpus/crosstool/CROSSTOOL
+@@ -40,13 +40,13 @@ toolchain {
+
+   tool_path { name: "ar" path: "/usr/bin/ar" }
+   tool_path { name: "compat-ld" path: "/usr/bin/ld" }
+-  tool_path { name: "cpp" path: "/usr/bin/cpp" }
++  tool_path { name: "cpp" path: "/opt/gcc/5.3.0/bin/c++" }
+   tool_path { name: "dwp" path: "/usr/bin/dwp" }
+   # As part of the TensorFlow release, we place some cuda-related compilation
+   # files in third_party/gpus/crosstool/clang/bin, and this relative
+   # path, combined with the rest of our Bazel configuration causes our
+   # compilation to use those files.
+-  tool_path { name: "gcc" path: "clang/bin/crosstool_wrapper_driver_is_not_gcc" }
++  tool_path { name: "gcc" path: "/u/sciteam/luckow/src/tensorflow/third_party/gpus/crosstool/clang/bin/crosstool_wrapper_driver_is_not_gcc" }
+   # Use "-std=c++11" for nvcc. For consistency, force both the host compiler
+   # and the device compiler to use "-std=c++11".
+   cxx_flag: "-std=c++11"
+@@ -57,7 +57,11 @@ toolchain {
+   # used by gcc. That works because bazel currently doesn't track files at
+   # absolute locations and has no remote execution, yet. However, this will need
+   # to be fixed, maybe with auto-detection?
+-  cxx_builtin_include_directory: "/usr/lib/gcc/"
++  #cxx_builtin_include_directory: "/usr/lib/gcc/"
++  cxx_builtin_include_directory: "/opt/gcc/5.3.0/include"
++  cxx_builtin_include_directory: "/opt/gcc/5.3.0/snos/include/"
++  cxx_builtin_include_directory: "/opt/gcc/5.3.0/snos/lib/gcc/x86_64-suse-linux/5.3.0/include/"
++  cxx_builtin_include_directory: "/opt/gcc/5.3.0/snos/lib/gcc/x86_64-suse-linux/5.3.0/include-fixed/"
+   cxx_builtin_include_directory: "/usr/local/include"
+   cxx_builtin_include_directory: "/usr/include"
+   tool_path { name: "gcov" path: "/usr/bin/gcov" }
+@@ -165,9 +169,9 @@ toolchain {
+
+   tool_path { name: "ar" path: "/usr/bin/libtool" }
+   tool_path { name: "compat-ld" path: "/usr/bin/ld" }
+-  tool_path { name: "cpp" path: "/usr/bin/cpp" }
++  tool_path { name: "cpp" path: "/opt/gcc/5.3.0/bin/c++" }
+   tool_path { name: "dwp" path: "/usr/bin/dwp" }
+-  tool_path { name: "gcc" path: "clang/bin/crosstool_wrapper_driver_is_not_gcc" }
++  tool_path { name: "gcc" path: "/opt/gcc/5.3.0/bin/gcc" }
+   cxx_flag: "-std=c++11"
+   ar_flag: "-static"
+   ar_flag: "-s"
+diff --git a/third_party/gpus/crosstool/clang/bin/crosstool_wrapper_driver_is_not_gcc b/third_party/gpus/crosstool/clang/bin/crosstool_wrapper_driver_is_not_gcc
+index 5f175ef..e16b13d 100755
+--- a/third_party/gpus/crosstool/clang/bin/crosstool_wrapper_driver_is_not_gcc
++++ b/third_party/gpus/crosstool/clang/bin/crosstool_wrapper_driver_is_not_gcc
+@@ -1,4 +1,5 @@
+-#!/usr/bin/env python2.7
++#!/u/sciteam/luckow/anaconda2/bin/python2.7
++#/usr/bin/env python2.7
+ # Copyright 2015 Google Inc. All Rights Reserved.
+ #
+ # Licensed under the Apache License, Version 2.0 (the "License");
+@@ -45,12 +46,14 @@ import pipes
+
+ # "configure" uses the specific format to substitute the following string.
+ # If you change it, make sure you modify "configure" as well.
+-CPU_COMPILER = ('/usr/bin/gcc')
+-GCC_HOST_COMPILER_PATH = ('/usr/bin/gcc')
++# Unofficial setting. DO NOT SUBMIT!!!
++CPU_COMPILER = ('/opt/gcc/5.3.0/bin/gcc')
++# Unofficial setting. DO NOT SUBMIT!!!
++GCC_HOST_COMPILER_PATH = ('/opt/gcc/5.3.0/bin/gcc')
+
+ CURRENT_DIR = os.path.dirname(sys.argv[0])
+-NVCC_PATH = CURRENT_DIR + '/../../../cuda/bin/nvcc'
+-LLVM_HOST_COMPILER_PATH = ('/usr/bin/gcc')
++NVCC_PATH = '/opt/nvidia/cudatoolkit7.0/7.0.28-1.0502.10742.5.1/bin/nvcc'
++LLVM_HOST_COMPILER_PATH = ('/opt/gcc/5.3.0/bin/gcc')
+ PREFIX_DIR = os.path.dirname(GCC_HOST_COMPILER_PATH)
+
+ def Log(s):
+diff --git a/third_party/gpus/cuda/platform.bzl b/third_party/gpus/cuda/platform.bzl
+index 06f3d0c..3db7456 100644
+--- a/third_party/gpus/cuda/platform.bzl
++++ b/third_party/gpus/cuda/platform.bzl
+@@ -1,6 +1,6 @@
+ CUDA_VERSION = ""
+ CUDNN_VERSION = ""
+-PLATFORM = ""
++PLATFORM = "Linux"
+
+ def cuda_sdk_version():
+   return CUDA_VERSION
+
