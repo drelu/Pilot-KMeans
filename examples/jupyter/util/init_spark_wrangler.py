@@ -1,7 +1,6 @@
 import os, sys, time
 
-SPARK_HOME="/usr/hdp/2.3.2.0-2950/spark-1.6.0P2" 
-SPARK_HOME="/home/01131/tg804093/work/spark-1.5.2-bin-hadoop2.6" 
+SPARK_HOME="/home/01131/tg804093/work/spark-2.0.0-bin-hadoop2.6" 
 
 if not os.environ.has_key("SPARK_HOME"):
     os.environ["SPARK_HOME"]=SPARK_HOME
@@ -14,11 +13,11 @@ else:
 os.environ["PYSPARK_PYTHON"]="/home/01131/tg804093/anaconda2/bin/python"
 os.environ["PYSPARK_DRIVER_PYTHON"]="ipython"
 os.environ["PYSPARK_DRIVER_PYTHON_OPTS"]="notebook"
-os.environ["PYTHONPATH"]= os.path.join(SPARK_HOME, "python")+":" + os.path.join(SPARK_HOME, "python/lib/py4j-0.8.2.1-src.zip")
+os.environ["PYTHONPATH"]= os.path.join(SPARK_HOME, "python")+":" + os.path.join(SPARK_HOME, "python/lib/py4j-0.10.1-src.zip")
     
 sys.path.insert(0, os.path.join(SPARK_HOME, "python"))
 #sys.path.insert(0, os.path.join(SPARK_HOME, 'python/lib/py4j-0.9-src.zip')) 
-sys.path.insert(0, os.path.join(SPARK_HOME, 'python/lib/py4j-0.8.2.1-src.zip')) 
+sys.path.insert(0, os.path.join(SPARK_HOME, 'python/lib/py4j-0.10.1-src.zip')) 
 sys.path.insert(0, os.path.join(SPARK_HOME, 'bin') )
 
 # import Spark Libraries
@@ -45,3 +44,8 @@ def print_application_url(yarn_output):
     pd.set_option('max_colwidth', 1000)
     df=pd.DataFrame(applications, columns=["User", "Name", "Spark Application URL"])
     return HTML(df.to_html(escape=False))
+
+
+#sc = SparkContext("spark://c251-119.wrangler.tacc.utexas.edu:7077")
+#print "Initialized SC"
+#sc.parallelize([1,2,3]).collect()
