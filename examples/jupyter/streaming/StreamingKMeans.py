@@ -72,7 +72,7 @@ def get_application_details(sc):
         if (max_id == (NUMBER_EXECUTORS-1)):
  
             break
-        time.sleep(1)
+        time.sleep(.1)
             
             
     # http://129.114.58.102:4040/api/v1/applications/
