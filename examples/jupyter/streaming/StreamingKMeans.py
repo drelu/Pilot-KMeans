@@ -24,16 +24,19 @@ import msgpack_numpy as m
 import urllib, json
 m.patch()
 
-run_timestamp=datetime.datetime.now()
-
+#######################################################################################
+# CONFIGURATIONS
 SPARK_MASTER="spark://c251-104.wrangler.tacc.utexas.edu:7077"
 SPARK_LOCAL_IP="129.114.58.102"
 KAFKA_ZK='c251-114.wrangler.tacc.utexas.edu:2181'
 METABROKER_LIST='c251-114.wrangler.tacc.utexas.edu:9092'
 TOPIC='kmeans_list'
-RESULT_FILE= "results/results-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
 NUMBER_EXECUTORS=1
 STREAMING_WINDOW=60
+#######################################################################################
+
+run_timestamp=datetime.datetime.now()
+RESULT_FILE= "results/spark-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
 
 
 try:
