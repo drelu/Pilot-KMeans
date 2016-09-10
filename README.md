@@ -1,16 +1,13 @@
-# Pilot-Data In-Memory for Iterative Computations
+# Pilot-Data In-Memory for Iterative Computations and Pilot-Streaming
 
 # SAGA-Hadoop
 
-[SAGA-Hadoop] can be used to spawn Spark and Kafka clusters: <https://github.com/drelu/SAGA-Hadoop>
-
-
-## Spark
-
-
+[SAGA-Hadoop] can be used to spawn Spark and Kafka clusters: <https://github.com/drelu/SAGA-Hadoop>. SAGA-Hadoop enables you to setup an environment usable for building data-intensive streaming applications on HPC.
 
 
 # Pilot-Memory (KMeans)
+
+## Spark
 
 For Spark all Python dependencies must be pre-installed on all nodes!
 
@@ -29,13 +26,18 @@ For Spark all Python dependencies must be pre-installed on all nodes!
 
 1. Start a local Kafka:
 
-    saga-hadoop --framework kafka
+        saga-hadoop --framework kafka
     
 
     
 2. Check Kafka Cluster
     
-    kafka-topics --list --zookeeper localhost:2181
+        kafka-topics --list --zookeeper localhost:2181
+
+        kafka-topics --create --zookeeper localhost:2181 --topic test
+
+        kafka-topics --delete --zookeeper localhost:2181 --topic test
+
 
 ## Kafka and Spark on HPC
 
@@ -43,4 +45,4 @@ For usage on a HPC machine, see example <https://github.com/drelu/Pilot-Memory/b
     
     
     
-    kafka-topics --delete --zookeeper localhost:2181 --topic test
+    
