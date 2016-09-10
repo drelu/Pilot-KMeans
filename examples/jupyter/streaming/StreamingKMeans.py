@@ -25,10 +25,10 @@ m.patch()
 
 run_timestamp=datetime.datetime.now()
 
-SPARK_MASTER="spark://c251-121.wrangler.tacc.utexas.edu:7077"
-SPARK_LOCAL_IP="129.114.58.2"
-KAFKA_ZK='c251-122.wrangler.tacc.utexas.edu:2181'
-METABROKER_LIST='c251-141.wrangler.tacc.utexas.edu:9092'
+SPARK_MASTER="spark:///c251-135.wrangler.tacc.utexas.edu:7077"
+SPARK_LOCAL_IP="129.114.58.134"
+KAFKA_ZK='c251-137.wrangler.tacc.utexas.edu:2181'
+METABROKER_LIST='c251-137.wrangler.tacc.utexas.edu:9092'
 TOPIC='kmeans_list'
 RESULT_FILE= "results/results-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
 
