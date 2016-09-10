@@ -43,6 +43,11 @@ For Spark all Python dependencies must be pre-installed on all nodes!
 
 For usage on a HPC machine, see example <https://github.com/drelu/Pilot-Memory/blob/master/examples/jupyter/streaming/Pilot-Spark-Wrangler.ipynb>
     
-    
-    
+        login1.wrangler ~/work$ saga-hadoop --resource=slurm://localhost              --queue=normal --walltime=59 --number_cores=24              --project=TG-MCB090174 --framework spark
+         
+        SPARK installation directory: /home/01131/xxx/work/work/spark-2.0.0-bin-hadoop2.6
+        (please allow some time until the SPARK cluster is completely initialized)
+        export PATH=/home/01131/xxx/work/work/spark-2.0.0-bin-hadoop2.6/bin:$PATH
+        Spark Web URL: http://c251-135:8080
+        Spark Submit endpoint: spark://c251-135:7077
     
