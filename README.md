@@ -1,8 +1,13 @@
-# Pilot-Data In-Memory for Iterative Computations and Pilot-Streaming
+# Pilot-Data and Pilot Streaming: In-Memory for Iterative Computations and Streaming
 
 # SAGA-Hadoop
 
 [SAGA-Hadoop] can be used to spawn Spark and Kafka clusters: <https://github.com/drelu/SAGA-Hadoop>. SAGA-Hadoop enables you to setup an environment usable for building data-intensive streaming applications on HPC.
+
+Project is dependency in lib/ directory of this github project. Use the following command for a complete checkout
+
+
+git clone --recursive https://github.com/drelu/SAGA-Hadoop.git
 
 
 # Pilot-Memory (KMeans)
