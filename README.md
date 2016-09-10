@@ -42,6 +42,9 @@ For Spark all Python dependencies must be pre-installed on all nodes!
 ## Kafka and Spark on HPC
 
 For usage on a HPC machine, see example <https://github.com/drelu/Pilot-Memory/blob/master/examples/jupyter/streaming/Pilot-Spark-Wrangler.ipynb>
+
+
+Spark
     
         login1.wrangler ~/work$ saga-hadoop --resource=slurm://localhost --queue=normal \ 
                                             --walltime=59 --number_cores=24 \
@@ -53,3 +56,14 @@ For usage on a HPC machine, see example <https://github.com/drelu/Pilot-Memory/b
         Spark Web URL: http://c251-135:8080
         Spark Submit endpoint: spark://c251-135:7077
     
+
+Kafka
+
+         login1.wrangler ~$ saga-hadoop --resource=slurm://localhost --queue=normal \
+                                        --walltime=59 --number_cores=24 \
+                                        --project=xx --framework kafka
+         Kafka Config: /home/01131/tg804093/work/kafka-2434be50-7770-11e6-9675-b083fed043f0/config (Sat Sep 10 11:03:32 2016)
+         broker.id: 0
+         listeners: PLAINTEXT://c251-137:9092
+         zookeeper.connect: c251-137:2181
+         zookeeper.connection.timeout.ms: 6000
