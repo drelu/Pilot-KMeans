@@ -7,17 +7,7 @@
 
 ## Spark
 
-kafka-topics --list --zookeeper localhost:2181
-Points
-pykafka-test-topic2
-test2
 
-
-## Kafka
-
-Start a local Kafka:
-
-    saga-hadoop --framework kafka
 
 
 # Pilot-Memory (KMeans)
@@ -35,9 +25,22 @@ For Spark all Python dependencies must be pre-installed on all nodes!
         spark-submit --master spark://192.168.0.3 --py-files src/kmeans/kmeans_spark.py, src/distributed_inmem/dataunit_spark.py src/kmeans/kmeans_spark.py
 
 
+## Kafka
 
-### Other Notes
+1. Start a local Kafka:
 
-Delete Kafka topic:
+    saga-hadoop --framework kafka
+    
 
-    kafka-topics.sh --delete --zookeeper localhost:2181 --topic test
+    
+2. Check Kafka Cluster
+    
+    kafka-topics --list --zookeeper localhost:2181
+
+## Kafka and Spark on HPC
+
+For usage on a HPC machine, see example <https://github.com/drelu/Pilot-Memory/blob/master/examples/jupyter/streaming/Pilot-Spark-Wrangler.ipynb>
+    
+    
+    
+    kafka-topics --delete --zookeeper localhost:2181 --topic test
