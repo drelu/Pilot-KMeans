@@ -6,7 +6,7 @@ import time
 import datetime
 #m.patch()
 
-zkKafka='c251-114.wrangler.tacc.utexas.edu:2181'
+zkKafka='c251-137.wrangler.tacc.utexas.edu:2181'
 client = KafkaClient(zookeeper_hosts=zkKafka)
 #client = KafkaClient(hosts='c251-142.wrangler.tacc.utexas.edu:9092')
 topic = client.topics['kmeans_list']

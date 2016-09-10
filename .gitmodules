@@ -1,0 +1,3 @@
+[submodule "lib/SAGA-Hadoop"]
+	path = lib/SAGA-Hadoop
+	url = git@github.com:drelu/SAGA-Hadoop.git

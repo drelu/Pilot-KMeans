@@ -21,16 +21,23 @@ from pyspark.streaming.kafka import KafkaUtils
 import numpy as np
 import msgpack
 import msgpack_numpy as m
+import urllib, json
 m.patch()
 
-run_timestamp=datetime.datetime.now()
-
-SPARK_MASTER="spark:///c251-135.wrangler.tacc.utexas.edu:7077"
-SPARK_LOCAL_IP="129.114.58.134"
-KAFKA_ZK='c251-137.wrangler.tacc.utexas.edu:2181'
-METABROKER_LIST='c251-137.wrangler.tacc.utexas.edu:9092'
+#######################################################################################
+# CONFIGURATIONS
+SPARK_MASTER="spark://c251-104.wrangler.tacc.utexas.edu:7077"
+SPARK_LOCAL_IP="129.114.58.102"
+KAFKA_ZK='c251-114.wrangler.tacc.utexas.edu:2181'
+METABROKER_LIST='c251-114.wrangler.tacc.utexas.edu:9092'
 TOPIC='kmeans_list'
-RESULT_FILE= "results/results-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
+NUMBER_EXECUTORS=1
+STREAMING_WINDOW=60
+#######################################################################################
+
+run_timestamp=datetime.datetime.now()
+RESULT_FILE= "results/spark-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
+
 
 try:
     os.makedirs("results")
@@ -50,12 +57,40 @@ pilotcompute_description = {
 print "SPARK HOME: %s"%os.environ["SPARK_HOME"]
 print "PYTHONPATH: %s"%os.environ["PYTHONPATH"]
 
+def get_application_details(sc):
+    app_id=sc.applicationId
+    url = "http://" + SPARK_LOCAL_IP + ":4040/api/v1/applications/"+ app_id + "/executors"
+    cores = 0
+    max_id = -1
+    while True:
+        response = urllib.urlopen(url)
+        data = json.loads(response.read())
+        print data
+        for i in data:
+            print "Process %s"%i["id"]
+            if i["id"]!="driver":
+                cores = cores + i["totalCores"]
+                max_id = int(i["id"])
+        print "Max_id: %d, Number Executors: %d"%(max_id, NUMBER_EXECUTORS)
+        if (max_id == (NUMBER_EXECUTORS-1)):
+ 
+            break
+        time.sleep(.1)
+            
+            
+    # http://129.114.58.102:4040/api/v1/applications/
+    # http://129.114.58.102:4040/api/v1/applications/app-20160821102227-0003/executors
+    return cores
+
+
 start = time.time()
 pilot_spark = PilotSparkComputeService.create_pilot(pilotcompute_description=pilotcompute_description)
 sc = pilot_spark.get_spark_context()
+spark_cores=get_application_details(sc)
 #print str(sc.parallelize([2,3]).collect())
-output_file.write("Spark Startup, %d, %.2f\n"%(-1, time.time()-start))
-
+output_file.write("Measurement,Spark Cores,Number Points,Time\n")
+output_file.write("Spark Startup, %d, %d, %.5f\n"%(spark_cores, -1, time.time()-start))
+output_file.flush()
 #######################################################################################
 
 decayFactor=1.0
@@ -79,7 +114,7 @@ def pre_process(datetime, rdd):
     points=rdd.map(lambda p: p[1]).flatMap(lambda a: eval(a)).map(lambda a: Vectors.dense(a))
     end_preproc=time.time()
     count = points.count()
-    output_file.write("KMeans PreProcess, %d, %.5f\n"%(count, end_preproc-start))
+    output_file.write("KMeans PreProcess, %d, %d, %.5f\n"%(spark_cores, count, end_preproc-start))
     output_file.flush()
     return points
     #points.pprint()
@@ -93,7 +128,7 @@ def model_update(rdd):
     end_train = time.time()
     #predictions=model.predictOn(points)
     #end_pred = time.time()    
-    output_file.write("KMeans Model Update, %d, %.3f\n"%(count, end_train-start))
+    output_file.write("KMeans Model Update, %d, %d, %.5f\n"%(spark_cores, count, end_train-start))
     output_file.flush()
     #output_file.write("KMeans Prediction, %.3f\n"%(end_pred-end_train))
     #return predictions
@@ -104,12 +139,12 @@ def model_prediction(rdd):
 
     
 ssc_start = time.time()    
-ssc = StreamingContext(sc, 10)
+ssc = StreamingContext(sc, STREAMING_WINDOW)
 #kafka_dstream = KafkaUtils.createStream(ssc, KAFKA_ZK, "spark-streaming-consumer", {TOPIC: 1})
 #kafka_param: "metadata.broker.list": brokers
 kafka_dstream = KafkaUtils.createDirectStream(ssc, [TOPIC], {"metadata.broker.list": METABROKER_LIST })
 ssc_end = time.time()    
-output_file.write("Spark SSC Startup, %d, %.2f\n"%(-1, ssc_end-ssc_start))
+output_file.write("Spark SSC Startup, %d, %d, %.5f\n"%(spark_cores, -1, ssc_end-ssc_start))
 
 
 #counts=[]
