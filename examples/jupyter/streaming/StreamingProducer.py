@@ -1,12 +1,11 @@
 from pykafka import KafkaClient
 import numpy as np
-#import msgpack
-#import msgpack_numpy as m
+import os
 import time
 import datetime
-#m.patch()
+import saga_hadoop_utils
 
-zkKafka='c251-137.wrangler.tacc.utexas.edu:2181'
+zkKafka=saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))[1]
 client = KafkaClient(zookeeper_hosts=zkKafka)
 #client = KafkaClient(hosts='c251-142.wrangler.tacc.utexas.edu:9092')
 topic = client.topics['kmeans_list']

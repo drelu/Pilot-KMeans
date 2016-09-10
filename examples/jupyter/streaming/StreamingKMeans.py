@@ -22,18 +22,28 @@ import numpy as np
 import msgpack
 import msgpack_numpy as m
 import urllib, json
-m.patch()
+import socket
+import saga_hadoop_utils
+
 
 #######################################################################################
 # CONFIGURATIONS
-SPARK_MASTER="spark://c251-104.wrangler.tacc.utexas.edu:7077"
-SPARK_LOCAL_IP="129.114.58.102"
-KAFKA_ZK='c251-114.wrangler.tacc.utexas.edu:2181'
-METABROKER_LIST='c251-114.wrangler.tacc.utexas.edu:9092'
+# Get current cluster setup from work directory
+master_host=saga_hadoop_utils.get_spark_master(os.path.expanduser('~'))
+kafka_details = saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))
+print kafka_details                                       
+                                       
+SPARK_MASTER="spark://" + master_host +":7077"
+SPARK_LOCAL_IP=socket.gethostbyname(socket.gethostname())
+KAFKA_ZK=kafka_details[1]
+METABROKER_LIST=",".join(kafka_details[0])
 TOPIC='kmeans_list'
 NUMBER_EXECUTORS=1
 STREAMING_WINDOW=60
 #######################################################################################
+
+
+print "Spark Master: " + SPARK_MASTER
 
 run_timestamp=datetime.datetime.now()
 RESULT_FILE= "results/spark-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
