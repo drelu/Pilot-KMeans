@@ -51,9 +51,7 @@ For usage on a HPC machine, see example <https://github.com/drelu/Pilot-Memory/b
 
 Spark
     
-        login1.wrangler ~/work$ saga-hadoop --resource=slurm://localhost --queue=normal \ 
-                                            --walltime=59 --number_cores=24 \
-                                            --project=xxxx --framework spark
+        login1.wrangler ~/work$ saga-hadoop --resource=slurm://localhost --queue=normal  --walltime=59 --number_cores=24   --project=xxxx --framework spark
          
         SPARK installation directory: /home/01131/xxx/work/work/spark-2.0.0-bin-hadoop2.6
         (please allow some time until the SPARK cluster is completely initialized)
