@@ -1,6 +1,6 @@
 #!/bin/python
 #
-# /home/01131/tg804093/work/spark-2.0.0-bin-hadoop2.6/bin/spark-submit --master spark://c251-121.wrangler.tacc.utexas.edu:7077 --packages  org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.0 StreamingApp.py
+# /home/01131/tg804093/work/spark-2.0.0-bin-hadoop2.6/bin/spark-submit --master spark://c251-121.wrangler.tacc.utexas.edu:7077 --packages  org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.0 --files saga_hadoop_utils.py StreamingKMeans.py
 
 import os
 import sys
@@ -24,7 +24,8 @@ import msgpack_numpy as m
 import urllib, json
 import socket
 import saga_hadoop_utils
-
+import re
+from subprocess import check_output
 
 #######################################################################################
 # CONFIGURATIONS
@@ -37,11 +38,22 @@ SPARK_MASTER="spark://" + master_host +":7077"
 SPARK_LOCAL_IP=socket.gethostbyname(socket.gethostname())
 KAFKA_ZK=kafka_details[1]
 METABROKER_LIST=",".join(kafka_details[0])
-TOPIC='kmeans_list'
+TOPIC='KmeansList'
 NUMBER_EXECUTORS=1
 STREAMING_WINDOW=60
 #######################################################################################
 
+
+def get_number_partitions():
+    cmd = "/home/01131/tg804093/work/kafka_2.11-0.10.0.0/bin/kafka-topics.sh --describe --topic %s --zookeeper c251-112:2181"%(TOPIC)
+    print cmd
+    out = check_output(cmd, shell=True)
+    number=re.search("(?<=PartitionCount:)[0-9]*", out).group(0)
+    return number
+
+
+NUMBER_PARTITIONS = get_number_partitions()
+print "Number Partitions: "   + NUMBER_PARTITIONS
 
 print "Spark Master: " + SPARK_MASTER
 
@@ -70,9 +82,9 @@ print "PYTHONPATH: %s"%os.environ["PYTHONPATH"]
 def get_application_details(sc):
     app_id=sc.applicationId
     url = "http://" + SPARK_LOCAL_IP + ":4040/api/v1/applications/"+ app_id + "/executors"
-    cores = 0
     max_id = -1
     while True:
+        cores = 0
         response = urllib.urlopen(url)
         data = json.loads(response.read())
         print data
@@ -83,8 +95,7 @@ def get_application_details(sc):
                 max_id = int(i["id"])
         print "Max_id: %d, Number Executors: %d"%(max_id, NUMBER_EXECUTORS)
         if (max_id == (NUMBER_EXECUTORS-1)):
- 
-            break
+             break
         time.sleep(.1)
             
             
@@ -98,8 +109,8 @@ pilot_spark = PilotSparkComputeService.create_pilot(pilotcompute_description=pil
 sc = pilot_spark.get_spark_context()
 spark_cores=get_application_details(sc)
 #print str(sc.parallelize([2,3]).collect())
-output_file.write("Measurement,Spark Cores,Number Points,Time\n")
-output_file.write("Spark Startup, %d, %d, %.5f\n"%(spark_cores, -1, time.time()-start))
+output_file.write("Measurement,Spark Cores,Number Points,Number_Partitions, Time\n")
+output_file.write("Spark Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, time.time()-start))
 output_file.flush()
 #######################################################################################
 
@@ -154,7 +165,7 @@ ssc = StreamingContext(sc, STREAMING_WINDOW)
 #kafka_param: "metadata.broker.list": brokers
 kafka_dstream = KafkaUtils.createDirectStream(ssc, [TOPIC], {"metadata.broker.list": METABROKER_LIST })
 ssc_end = time.time()    
-output_file.write("Spark SSC Startup, %d, %d, %.5f\n"%(spark_cores, -1, ssc_end-ssc_start))
+output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, ssc_end-ssc_start))
 
 
 #counts=[]

@@ -51,7 +51,7 @@ def get_spark_master(working_directory=None):
         counter = counter + 1
 
     with open(master_file, 'r') as f:
-        master = f.read()
+        master = f.read().strip()
 
     return master
 
