@@ -45,7 +45,7 @@ STREAMING_WINDOW=60
 
 
 def get_number_partitions():
-    cmd = "/home/01131/tg804093/work/kafka_2.11-0.10.0.0/bin/kafka-topics.sh --describe --topic %s --zookeeper c251-112:2181"%(TOPIC)
+    cmd = "/home/01131/tg804093/work/kafka_2.11-0.10.0.0/bin/kafka-topics.sh --describe --topic %s --zookeeper %s"%(TOPIC, KAFKA_ZK)
     print cmd
     out = check_output(cmd, shell=True)
     number=re.search("(?<=PartitionCount:)[0-9]*", out).group(0)
