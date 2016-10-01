@@ -1,6 +1,6 @@
 #!/bin/python
 #
-# /home/01131/tg804093/work/spark-2.0.0-bin-hadoop2.6/bin/spark-submit --master spark://c251-121.wrangler.tacc.utexas.edu:7077 --packages  org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.0 --files saga_hadoop_utils.py StreamingKMeans.py
+# /home/01131/tg804093/work/spark-2.0.0-bin-hadoop2.6/bin/spark-submit --master spark://c251-102.wrangler.tacc.utexas.edu:7077 --packages  org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.0 --files saga_hadoop_utils.py StreamingKMeans.py
 
 import os
 import sys
@@ -39,7 +39,7 @@ SPARK_LOCAL_IP=socket.gethostbyname(socket.gethostname())
 KAFKA_ZK=kafka_details[1]
 METABROKER_LIST=",".join(kafka_details[0])
 TOPIC='KmeansList'
-NUMBER_EXECUTORS=1
+NUMBER_EXECUTORS=4
 STREAMING_WINDOW=60
 #######################################################################################
 
@@ -92,10 +92,10 @@ def get_application_details(sc):
             print "Process %s"%i["id"]
             if i["id"]!="driver":
                 cores = cores + i["totalCores"]
-                max_id = int(i["id"])
+                if int(i["id"]) > max_id: max_id = int(i["id"])
         print "Max_id: %d, Number Executors: %d"%(max_id, NUMBER_EXECUTORS)
         if (max_id == (NUMBER_EXECUTORS-1)):
-             break
+            break
         time.sleep(.1)
             
             
@@ -135,7 +135,7 @@ def pre_process(datetime, rdd):
     points=rdd.map(lambda p: p[1]).flatMap(lambda a: eval(a)).map(lambda a: Vectors.dense(a))
     end_preproc=time.time()
     count = points.count()
-    output_file.write("KMeans PreProcess, %d, %d, %.5f\n"%(spark_cores, count, end_preproc-start))
+    output_file.write("KMeans PreProcess, %d, %d, %s, %.5f\n"%(spark_cores, count, NUMBER_PARTITIONS, end_preproc-start))
     output_file.flush()
     return points
     #points.pprint()
@@ -149,7 +149,7 @@ def model_update(rdd):
     end_train = time.time()
     #predictions=model.predictOn(points)
     #end_pred = time.time()    
-    output_file.write("KMeans Model Update, %d, %d, %.5f\n"%(spark_cores, count, end_train-start))
+    output_file.write("KMeans Model Update, %d, %d, %s, %.5f\n"%(spark_cores, count,NUMBER_PARTITIONS, end_train-start))
     output_file.flush()
     #output_file.write("KMeans Prediction, %.3f\n"%(end_pred-end_train))
     #return predictions
