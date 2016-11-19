@@ -1,6 +1,6 @@
 #!/bin/python
 #
-# /home/01131/tg804093/work/spark-2.0.0-bin-hadoop2.6/bin/spark-submit --master spark://c251-102.wrangler.tacc.utexas.edu:7077 --packages  org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.0 --files saga_hadoop_utils.py StreamingKMeans.py
+# /home/01131/tg804093/work/spark-2.0.2-bin-hadoop2.6/bin/spark-submit --master spark://c251-102.wrangler.tacc.utexas.edu:7077 --packages  org.apache.spark:spark-streaming-kafka-0-10_2.11:2.0.2 --files saga_hadoop_utils.py StreamingKMeans.py
 
 import os
 import sys
@@ -39,13 +39,13 @@ SPARK_LOCAL_IP=socket.gethostbyname(socket.gethostname())
 KAFKA_ZK=kafka_details[1]
 METABROKER_LIST=",".join(kafka_details[0])
 TOPIC='KmeansList'
-NUMBER_EXECUTORS=4
+NUMBER_EXECUTORS=1
 STREAMING_WINDOW=60
 #######################################################################################
 
 
 def get_number_partitions():
-    cmd = "/home/01131/tg804093/work/kafka_2.11-0.10.0.0/bin/kafka-topics.sh --describe --topic %s --zookeeper %s"%(TOPIC, KAFKA_ZK)
+    cmd = "/home/01131/tg804093/work/kafka_2.11-0.10.1.0/bin/kafka-topics.sh --describe --topic %s --zookeeper %s"%(TOPIC, KAFKA_ZK)
     print cmd
     out = check_output(cmd, shell=True)
     number=re.search("(?<=PartitionCount:)[0-9]*", out).group(0)

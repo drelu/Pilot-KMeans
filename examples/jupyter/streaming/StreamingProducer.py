@@ -6,7 +6,7 @@ import datetime
 import saga_hadoop_utils
 from pykafka.partitioners import hashing_partitioner
 
-KAFKA_HOME="/home/01131/tg804093/work/kafka_2.11-0.10.0.0"
+KAFKA_HOME="/home/01131/tg804093/work/kafka_2.11-0.10.1.0"
 NUMBER_CLUSTER=[100, 100, 100, 100, 100]
 NUMBER_POINTS_PER_CLUSTER=[100, 1000, 10000, 100000, 1000000]
 NUMBER_DIM=3 
@@ -15,8 +15,6 @@ INTERVAL=60
 NUMBER_OF_PRODUCES=10 # 10*60 = 10 minutes
 NUMBER_PARTITIONS=96
 TOPIC_NAME="KmeansList"
-
-
 
 
 zkKafka=saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))[1]
