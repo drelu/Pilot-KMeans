@@ -11,32 +11,34 @@ NUMBER_CLUSTER=[100, 100, 100, 100, 100]
 NUMBER_POINTS_PER_CLUSTER=[100, 1000, 10000, 100000, 1000000]
 NUMBER_DIM=3 
 NUMBER_POINTS_PER_MESSAGE=5000
-INTERVAL=60
-NUMBER_OF_PRODUCES=10 # 10*60 = 10 minutes
+INTERVAL=0
+NUMBER_OF_PRODUCES=1 # 10*60 = 10 minutes
 NUMBER_PARTITIONS=24
 TOPIC_NAME="KmeansList"
 
+OUTPUT_TO_KAFKA=False
+OUTPUT_TO_FILE=True
+OUTPUT_TO_FILE_PREFIX="kmeans"
 
-
-
-zkKafka=saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))[1]
-client = KafkaClient(zookeeper_hosts=zkKafka)
-cmd="%s/bin/kafka-topics.sh --delete --zookeeper %s --topic %s"%(KAFKA_HOME, zkKafka, TOPIC_NAME)
-print cmd
-os.system(cmd)
-
-cmd="%s/bin/kafka-topics.sh --create --zookeeper %s --replication-factor 1 --partitions %d --topic %s"%(KAFKA_HOME, zkKafka, NUMBER_PARTITIONS, TOPIC_NAME)
-print cmd
-os.system(cmd)
-
-cmd="%s/bin/kafka-topics.sh --describe --zookeeper %s --topic %s"%(KAFKA_HOME, zkKafka, TOPIC_NAME)
-print cmd
-os.system(cmd)
-
-
-#client = KafkaClient(hosts='c251-142.wrangler.tacc.utexas.edu:9092')
-topic = client.topics[TOPIC_NAME]
-producer = topic.get_sync_producer(partitioner=hashing_partitioner)
+if OUTPUT_TO_KAFKA:
+    zkKafka=saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))[1]
+    client = KafkaClient(zookeeper_hosts=zkKafka)
+    cmd="%s/bin/kafka-topics.sh --delete --zookeeper %s --topic %s"%(KAFKA_HOME, zkKafka, TOPIC_NAME)
+    print cmd
+    os.system(cmd)
+    
+    cmd="%s/bin/kafka-topics.sh --create --zookeeper %s --replication-factor 1 --partitions %d --topic %s"%(KAFKA_HOME, zkKafka, NUMBER_PARTITIONS, TOPIC_NAME)
+    print cmd
+    os.system(cmd)
+    
+    cmd="%s/bin/kafka-topics.sh --describe --zookeeper %s --topic %s"%(KAFKA_HOME, zkKafka, TOPIC_NAME)
+    print cmd
+    os.system(cmd)
+    
+    
+    #client = KafkaClient(hosts='c251-142.wrangler.tacc.utexas.edu:9092')
+    topic = client.topics[TOPIC_NAME]
+    producer = topic.get_sync_producer(partitioner=hashing_partitioner)
 #consumer = topic.get_simple_consumer()
 
 run_timestamp=datetime.datetime.now()
@@ -70,6 +72,9 @@ for idx, num_cluster in enumerate(NUMBER_CLUSTER):
             p = get_random_cluster_points(num_point_per_cluster, NUMBER_DIM)
             points.append(p)
         points_np=np.concatenate(points)
+        if OUTPUT_TO_FILE:
+            filename="%s_%d_%d_%d.np"%(OUTPUT_TO_FILE_PREFIX, num_cluster, num_point_per_cluster,NUMBER_DIM) 
+            np.savetxt(filename, points_np)
         
         number_batches = points_np.shape[0]/NUMBER_POINTS_PER_MESSAGE
         print "Points Array Shape: %s, Number Batches: %.1f"%(points_np.shape, number_batches)
@@ -78,7 +83,7 @@ for idx, num_cluster in enumerate(NUMBER_CLUSTER):
             print "Produce Batch: %d - %d"%(last_index, last_index+NUMBER_POINTS_PER_MESSAGE)
             points_batch = points_np[last_index:last_index+NUMBER_POINTS_PER_MESSAGE]
             points_strlist=str(points_batch.tolist())
-            producer.produce(points_strlist, partition_key='{}'.format(count))
+            if OUTPUT_TO_KAFKA: producer.produce(points_strlist, partition_key='{}'.format(count))
             count = count + 1
             last_index = last_index + NUMBER_POINTS_PER_MESSAGE
         
