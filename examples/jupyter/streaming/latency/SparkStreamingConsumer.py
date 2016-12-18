@@ -1,7 +1,9 @@
 #!/bin/python
 #
-# /home/01131/tg804093/work/spark-2.0.2-bin-hadoop2.6/bin/spark-submit --master spark://c251-102.wrangler.tacc.utexas.edu:7077 --packages  org.apache.spark:spark-streaming-kafka-0-10_2.11:2.0.2 --files saga_hadoop_utils.py StreamingKMeans.py
+# export PYTHONPATH=/home/01131/tg804093/notebooks/Pilot-Memory/examples/jupyter/streaming/
+# /home/01131/tg804093/work/spark-2.0.2-bin-hadoop2.6/bin/spark-submit --master spark://c251-109.wrangler.tacc.utexas.edu:7077 --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --files ../saga_hadoop_utils.py SparkStreamingLatency.py
 
+ 
 import os
 import sys
 import pickle
@@ -10,7 +12,7 @@ import datetime
 start = time.time()
 import logging
 logging.basicConfig(level=logging.WARN)
-sys.path.append("../util")
+sys.path.append("../../util")
 import init_spark_wrangler
 from pilot_hadoop import PilotComputeService as PilotSparkComputeService
 from pyspark.mllib.linalg import Vectors
@@ -26,6 +28,7 @@ import socket
 import saga_hadoop_utils
 import re
 from subprocess import check_output
+import dateutil.parser
 
 #######################################################################################
 # CONFIGURATIONS
@@ -40,7 +43,7 @@ KAFKA_ZK=kafka_details[1]
 METABROKER_LIST=",".join(kafka_details[0])
 TOPIC='latency'
 NUMBER_EXECUTORS=1
-STREAMING_WINDOW=1
+STREAMING_WINDOW=0.1
 #######################################################################################
 
 
@@ -57,8 +60,7 @@ print "Number Partitions: "   + NUMBER_PARTITIONS
 print "Spark Master: " + SPARK_MASTER
 
 run_timestamp=datetime.datetime.now()
-RESULT_FILE= "results/spark-latency" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
-
+RESULT_FILE= "/home/01131/tg804093/notebooks/Pilot-Memory/examples/jupyter/streaming/latency/results/spark-latency" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
 
 try:
     os.makedirs("results")
@@ -107,56 +109,6 @@ start = time.time()
 pilot_spark = PilotSparkComputeService.create_pilot(pilotcompute_description=pilotcompute_description)
 sc = pilot_spark.get_spark_context()
 spark_cores=get_application_details(sc)
-#print str(sc.parallelize([2,3]).collect())
-output_file.write("Measurement,Spark Cores,Number Points,Number_Partitions, Time\n")
-output_file.write("Spark Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, time.time()-start))
-output_file.flush()
-#######################################################################################
-
-decayFactor=1.0
-timeUnit="batches"
-model = StreamingKMeans(k=10, decayFactor=decayFactor, timeUnit=timeUnit).setRandomCenters(3, 1.0, 0)
-
-def printOffsetRanges(rdd):
-    for o in offsetRanges:
-        print "%s %s %s %s" % (o.topic, o.partition, o.fromOffset, o.untilOffset)
-
-def count_records(rdd):    
-    print str(type(rdd))
-    if rdd!=None:
-        return rdd.collect()
-    
-    return [0]
-        
-def pre_process(datetime, rdd):  
-    #print (str(type(time)) + " " + str(type(rdd)))    
-    start = time.time()    
-    points=rdd.map(lambda p: p[1]).flatMap(lambda a: eval(a)).map(lambda a: Vectors.dense(a))
-    end_preproc=time.time()
-    count = points.count()
-    output_file.write("KMeans PreProcess, %d, %d, %s, %.5f\n"%(spark_cores, count, NUMBER_PARTITIONS, end_preproc-start))
-    output_file.flush()
-    return points
-    #points.pprint()
-    #model.trainOn(points)
-
-def model_update(rdd):
-    count = rdd.count()
-    start = time.time()
-    lastest_model = model.latestModel()
-    lastest_model.update(rdd, decayFactor, timeUnit)    
-    end_train = time.time()
-    #predictions=model.predictOn(points)
-    #end_pred = time.time()    
-    output_file.write("KMeans Model Update, %d, %d, %s, %.5f\n"%(spark_cores, count,NUMBER_PARTITIONS, end_train-start))
-    output_file.flush()
-    #output_file.write("KMeans Prediction, %.3f\n"%(end_pred-end_train))
-    #return predictions
-    
-
-def model_prediction(rdd):
-    pass
-
     
 ssc_start = time.time()    
 ssc = StreamingContext(sc, STREAMING_WINDOW)
@@ -164,7 +116,40 @@ ssc = StreamingContext(sc, STREAMING_WINDOW)
 #kafka_param: "metadata.broker.list": brokers
 kafka_dstream = KafkaUtils.createDirectStream(ssc, [TOPIC], {"metadata.broker.list": METABROKER_LIST })
 ssc_end = time.time()    
-output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, ssc_end-ssc_start))
+#output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, ssc_end-ssc_start))
+output_file.close()
+
+#kafka_dstream.foreachRDD(lambda t, rdd: pr#ntOffsetRanges())
+
+# Account for different clocks on Wrangler
+source_time=1482008751.865997
+sink_time=1482008775.66351
+TIME_OFFSET=sink_time-source_time
+
+output_file=open(RESULT_FILE, "a")
+output_file.write("framework, type, microbatch_window_sec, data_rate_per_sec, Latency, sent_time, receive_time\n")
+output_file.flush()
+
+def measure_latency(message):
+    import dateutil.parser
+    now = time.time()
+    sent_time_string = message[1].split(";")[0]
+    sleep_time =float(message[1].split(";")[1])
+    sent_time = dateutil.parser.parse(sent_time_string)
+    sent_time_ts = time.mktime(sent_time.timetuple())
+    lat = now - sent_time_ts - TIME_OFFSET   
+    result = "spark-streaming, latency, %.2f, %.5f, %.5f, %s,%s\n"%(STREAMING_WINDOW, 1/sleep_time, lat, 
+                                                                    message[1].split(";")[0], 
+                                                                    datetime.datetime.now().isoformat())
+    output_file=open(RESULT_FILE, "a")
+    output_file.write(result)
+    output_file.close()
+    return result
+
+#kafka_dstream.pprint()
+kafka_dstream.map(lambda message: measure_latency(message)).pprint()
+
+
 
 
 #counts=[]
@@ -173,7 +158,7 @@ output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMB
 #count_messages  = sum(counts)
 #
 #output_file.write(str(counts))
-kafka_dstream.count().pprint()
+#kafka_dstream.count().pprint()
 
 #print str(counts)
 #count = kafka_dstream.count().reduce(lambda a, b: a+b).foreachRDD(lambda a: a.count())
@@ -182,13 +167,12 @@ kafka_dstream.count().pprint()
 #print "Number of Records: %d"%count
 
 
-points = kafka_dstream.transform(pre_process)
-points.pprint()
-points.foreachRDD(model_update)
+#points = kafka_dstream.transform(pre_process)
+#points.pprint()
+#points.foreachRDD(model_update)
 
 #predictions=model_update(points)
 #predictions.pprint()
-
 
 
 #We create a model with random clusters and specify the number of clusters to find

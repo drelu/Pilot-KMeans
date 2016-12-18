@@ -1,6 +1,6 @@
 #!/bin/python
 #
-# /home/01131/tg804093/work/spark-2.0.2-bin-hadoop2.6/bin/spark-submit --master spark://c251-102.wrangler.tacc.utexas.edu:7077 --packages  org.apache.spark:spark-streaming-kafka-0-10_2.11:2.0.2 --files saga_hadoop_utils.py StreamingKMeans.py
+#/home/01131/tg804093/work/spark-2.0.2-bin-hadoop2.6/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --files saga_hadoop_utils.py StreamingKMeans.py 
 
 import os
 import sys
@@ -33,8 +33,8 @@ from subprocess import check_output
 master_host=saga_hadoop_utils.get_spark_master(os.path.expanduser('~'))
 kafka_details = saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))
 print kafka_details                                       
-                                       
 SPARK_MASTER="spark://" + master_host +":7077"
+#SARK_MASTER="local[1]"
 SPARK_LOCAL_IP=socket.gethostbyname(socket.gethostname())
 KAFKA_ZK=kafka_details[1]
 METABROKER_LIST=",".join(kafka_details[0])
