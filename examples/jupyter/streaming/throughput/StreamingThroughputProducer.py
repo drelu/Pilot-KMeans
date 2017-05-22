@@ -11,11 +11,12 @@ KAFKA_HOME="/home/01131/tg804093/work/kafka_2.11-0.10.1.0"
 NUMBER_CLUSTER=[100]
 NUMBER_POINTS_PER_CLUSTER=[1000000]
 NUMBER_DIM=3 # 1 Point == ~62 Bytes
-NUMBER_POINTS_PER_MESSAGE=[1000, 2000, 4000, 5000, 8000, 10000] # 3-D Point == 304 KB
-INTERVAL=60
+NUMBER_POINTS_PER_MESSAGE=[8000] # 3-D Point == 304 KB
+#NUMBER_POINTS_PER_MESSAGE=[10000] # 3-D Point == 304 KB
+INTERVAL=0
 NUMBER_OF_PRODUCES=3 # 10*60 = 10 minutes
 NUMBER_PARTITIONS=48
-TOPIC_NAME="Throughput-Benchmark"
+TOPIC_NAME="Throughput"
 
 
 zkKafka=saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))[1]
@@ -76,10 +77,11 @@ for num_points_per_message in NUMBER_POINTS_PER_MESSAGE:
             print "Points Array Shape: %s, Number Batches: %.1f"%(points_np.shape, number_batches)
             last_index=0
             for i in range(number_batches):
-                print "Produce Batch: %d - %d, Num Messages: %d, KBytes Transfered: %.1f, KBytes/sec: %s"%\
+                print "Produce Batch: %d - %d, Num Messages: %d, Number Points per Message: %d, KBytes Transfered: %.1f, KBytes/sec: %s"%\
                                     (last_index,                                                                                           
                                      last_index+num_points_per_message, 
                                      num_messages,
+                                     num_points_per_message,
                                      bytes/1024,
                                      bytes/1024/(time.time()-global_start))
                 points_batch = points_np[last_index:last_index+num_points_per_message]

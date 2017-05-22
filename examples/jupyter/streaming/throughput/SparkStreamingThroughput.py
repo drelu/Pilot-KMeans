@@ -1,6 +1,6 @@
 #!/bin/python
 #
-#/home/01131/tg804093/work/spark-2.1.1-bin-hadoop2.6/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --files ../saga_hadoop_utils.py SparkStreamingThroughput.py 
+#/work/01131/tg804093/wrangler/work/spark-2.1.1-bin-hadoop2.7/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --files ../saga_hadoop_utils.py SparkStreamingThroughput.py 
 
 import os
 import sys
@@ -146,7 +146,9 @@ def pre_process(datetime, rdd):
     points=rdd.map(lambda p: p[1]).flatMap(lambda a: eval(a)).map(lambda a: Vectors.dense(a))
     end_preproc=time.time()
     count = points.count()
-    output_file.write("KMeans PreProcess, %d, %d, %s, %.5f\n"%(spark_cores, count, NUMBER_PARTITIONS, end_preproc-start))
+    end_clount = time.time()
+    output_file.write("Points PreProcess, %d, %d, %s, %.5f\n"%(spark_cores, count, NUMBER_PARTITIONS, end_preproc-start))
+    output_file.write("Points Count, %d, %d, %s, %.5f\n"%(spark_cores, count, NUMBER_PARTITIONS, end_clount-end_preproc))
     output_file.flush()
     return points
     #points.pprint()
@@ -183,14 +185,19 @@ kafka_dstream = KafkaUtils.createDirectStream(ssc, [TOPIC], {"metadata.broker.li
 ssc_end = time.time()    
 output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, ssc_end-ssc_start))
 
-
+#global counts
 #counts=[]
 #kafka_dstream.foreachRDD(lambda t, rdd: counts.append(rdd.count()))
+
+points = kafka_dstream.transform(pre_process)
+points.count().pprint()
+#print "********Found %d *************"%sum(counts)
+
 #global count_messages 
 #count_messages  = sum(counts)
 #
 #output_file.write(str(counts))
-kafka_dstream.count().pprint()
+#kafka_dstream.count().pprint()
 
 #print str(counts)
 #count = kafka_dstream.count().reduce(lambda a, b: a+b).foreachRDD(lambda a: a.count())
