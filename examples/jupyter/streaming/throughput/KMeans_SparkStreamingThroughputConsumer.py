@@ -33,6 +33,7 @@ import saga_hadoop_utils
 import re
 import pandas as pd
 from subprocess import check_output
+from pyspark.streaming.listener import StreamingListener
 
 
 
@@ -44,7 +45,7 @@ master_host=saga_hadoop_utils.get_spark_master(os.path.expanduser('~'))
 kafka_details = saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))
 print kafka_details                                       
 SPARK_MASTER="spark://" + master_host +":7077"
-SPARK_APP_PORT=4041 #4041 if ngrok is running
+SPARK_APP_PORT=4040 #4041 if ngrok is running
 #SARK_MASTER="local[1]"
 SPARK_LOCAL_IP=socket.gethostbyname(socket.gethostname())
 KAFKA_ZK=kafka_details[1]
@@ -84,6 +85,7 @@ except:
     pass
 
 output_file=open(RESULT_FILE, "w")
+output_spark_metrics=open(SPARK_RESULT_FILE, "w")
 
 os.environ["SPARK_LOCAL_IP"]=SPARK_LOCAL_IP
 
@@ -129,7 +131,70 @@ def get_streaming_performance_details(app_id, filename):
     df=pd.read_json(response.read())
     df.to_csv(filename)
 
+#######################################################################################
+# Collecting Performance Information about batch throughput
 
+class BatchInfoCollector(StreamingListener):
+
+    def __init__(self):
+        super(StreamingListener, self).__init__()
+        self.batchInfosCompleted = []
+        self.batchInfosStarted = []
+        self.batchInfosSubmitted = []
+
+    def onBatchSubmitted(self, batchSubmitted):
+        self.batchInfosSubmitted.append(batchSubmitted.batchInfo())
+
+    def onBatchStarted(self, batchStarted):
+        self.batchInfosStarted.append(batchStarted.batchInfo())
+
+    def onBatchCompleted(self, batchCompleted):
+        info = batchCompleted.batchInfo()
+        submissionTime = datetime.fromtimestamp(info.submissionTime()/1000).isoformat()
+        
+        output_spark_metrics.write("BatchTime, SubmissionTime, SchedulingDelay, TotalDelay, NumberRecords\n")
+        output_spark_metrics.write("%s, %d, %d, %d, %d\n"%(str(info.batchTime()), submissionTime, \
+                                                         info.schedulingDelay(), info.totalDelay(), info.numRecords()))
+        output_spark_metrics.flush()
+        self.batchInfosCompleted.append(batchCompleted.batchInfo())
+
+    def onStreamingStarted(self, streamStarted):  
+        pass
+        
+    def onReceiverStarted(self, receiverStarted):
+        """
+        Called when a receiver has been started
+        """
+        pass
+
+    def onReceiverError(self, receiverError):
+        """
+        Called when a receiver has reported an error
+        """
+        pass
+
+    def onReceiverStopped(self, receiverStopped):
+        """
+        Called when a receiver has been stopped
+        """
+        pass
+
+
+    def onOutputOperationStarted(self, outputOperationStarted):
+        """
+        Called when processing of a job of a batch has started.
+        """
+        pass
+
+    def onOutputOperationCompleted(self, outputOperationCompleted):
+        """
+        Called when processing of a job of a batch has completed
+        """
+        pass        
+            
+#######################################################################################
+# Init Spark
+            
 start = time.time()
 pilot_spark = PilotSparkComputeService.create_pilot(pilotcompute_description=pilotcompute_description)
 sc = pilot_spark.get_spark_context()
@@ -138,10 +203,14 @@ spark_cores=get_application_details(sc)
 output_file.write("Measurement,Spark Cores,Number Points,Number_Partitions, Time\n")
 output_file.write("Spark Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, time.time()-start))
 output_file.flush()
-#######################################################################################
 
+#######################################################################################
+# KMeans Functions
 decayFactor=1.0
 timeUnit="batches"
+global max_value 
+max_value = 0
+
 model = StreamingKMeans(k=10, decayFactor=decayFactor, timeUnit=timeUnit).setRandomCenters(3, 1.0, 0)
 
 def printOffsetRanges(rdd):
@@ -186,12 +255,17 @@ def model_update(rdd):
 def model_prediction(rdd):
     pass
 
-global max_value 
 
-max_value = 0
+##########################################################################################################################
+# Start Streaming App
     
 ssc_start = time.time()    
 ssc = StreamingContext(sc, STREAMING_WINDOW)
+
+batch_collector = BatchInfoCollector()
+ssc.addStreamingListener(batch_collector)
+      
+
 #kafka_dstream = KafkaUtils.createStream(ssc, KAFKA_ZK, "spark-streaming-consumer", {TOPIC: 1})
 #kafka_param: "metadata.broker.list": brokers
 #              "auto.offset.reset" : "smallest" # start from beginning
@@ -251,10 +325,6 @@ points.foreachRDD(model_update)
 
 ssc.start()
 ssc.awaitTermination()
-
-
-get_streaming_performance_details(sc.application_id, SPARK_RESULT_FILE)
-
 ssc.stop(stopSparkContext=True, stopGraceFully=True)
-
 output_file.close()
+output_spark_metrics.close()
