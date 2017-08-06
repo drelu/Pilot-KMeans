@@ -1,6 +1,10 @@
 #!/bin/python
 #
-#/work/01131/tg804093/wrangler/work/spark-2.1.1-bin-hadoop2.7/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --files ../saga_hadoop_utils.py SparkStreamingThroughput.py 
+#/home/01131/tg804093/work/spark-2.2.0-bin-hadoop2.7/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --files ../saga_hadoop_utils.py KMeans_SparkStreamingThroughputConsumer.py 
+# 
+# With app log:
+#  /home/01131/tg804093/work/spark-2.2.0-bin-hadoop2.7/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --conf spark.eventLog.enabled=true --conf "spark.eventLog.dir=file:///work/01131/tg804093/wrangler/spark-logs" --files ../saga_hadoop_utils.py  KMeans_SparkStreamingThroughputConsumer.py
+
 
 import os
 import sys
@@ -27,6 +31,7 @@ import urllib, json
 import socket
 import saga_hadoop_utils
 import re
+import pandas as pd
 from subprocess import check_output
 
 
@@ -39,6 +44,7 @@ master_host=saga_hadoop_utils.get_spark_master(os.path.expanduser('~'))
 kafka_details = saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))
 print kafka_details                                       
 SPARK_MASTER="spark://" + master_host +":7077"
+SPARK_APP_PORT=4041 #4041 if ngrok is running
 #SARK_MASTER="local[1]"
 SPARK_LOCAL_IP=socket.gethostbyname(socket.gethostname())
 KAFKA_ZK=kafka_details[1]
@@ -70,7 +76,7 @@ for i in range(int(NUMBER_PARTITIONS)):
 
 run_timestamp=datetime.datetime.now()
 RESULT_FILE= "results/spark-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
-
+SPARK_RESULT_FILE="results/spark-metrics" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
 
 try:
     os.makedirs("results")
@@ -92,7 +98,7 @@ print "PYTHONPATH: %s"%os.environ["PYTHONPATH"]
 
 def get_application_details(sc):
     app_id=sc.applicationId
-    url = "http://" + SPARK_LOCAL_IP + ":4040/api/v1/applications/"+ app_id + "/executors"
+    url = "http://" + SPARK_LOCAL_IP + ":" + str(SPARK_APP_PORT)+ "/api/v1/applications/"+ app_id + "/executors"
     max_id = -1
     while True:
         cores = 0
@@ -113,6 +119,15 @@ def get_application_details(sc):
     # http://129.114.58.102:4040/api/v1/applications/
     # http://129.114.58.102:4040/api/v1/applications/app-20160821102227-0003/executors
     return cores
+    #return 1
+    
+    
+def get_streaming_performance_details(app_id, filename):
+    """curl http://localhost:4041/api/v1/applications/app-20170805185159-0004/streaming/batches"""
+    url = "http://" + SPARK_LOCAL_IP + ":" + str(SPARK_APP_PORT)+ "/api/v1/applications/"+ app_id + "/streaming/batches"
+    response = urllib.urlopen(url)
+    df=pd.read_json(response.read())
+    df.to_csv(filename)
 
 
 start = time.time()
@@ -189,8 +204,8 @@ output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMB
 #counts=[]
 #kafka_dstream.foreachRDD(lambda t, rdd: counts.append(rdd.count()))
 
-points = kafka_dstream.transform(pre_process)
-points.count().pprint()
+#points = kafka_dstream.transform(pre_process)
+#points.count().pprint()
 #print "********Found %d *************"%sum(counts)
 
 #global count_messages 
@@ -206,9 +221,9 @@ points.count().pprint()
 #print "Number of Records: %d"%count
 
 
-#points = kafka_dstream.transform(pre_process)
+points = kafka_dstream.transform(pre_process)
 #points.pprint()
-#points.foreachRDD(model_update)
+points.foreachRDD(model_update)
 
 #predictions=model_update(points)
 #predictions.pprint()
@@ -236,6 +251,10 @@ points.count().pprint()
 
 ssc.start()
 ssc.awaitTermination()
+
+
+get_streaming_performance_details(sc.application_id, SPARK_RESULT_FILE)
+
 ssc.stop(stopSparkContext=True, stopGraceFully=True)
 
 output_file.close()
