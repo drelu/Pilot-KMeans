@@ -17,7 +17,7 @@ INTERVAL=0
 NUMBER_OF_PRODUCES=1000 # 10*60 = 10 minutes
 NUMBER_PARTITIONS=48
 TOPIC_NAME="Throughput"
-
+NUMBER_PARALLEL_TASKS=2
 
 zkKafka=saga_hadoop_utils.get_kafka_config_details(os.path.expanduser('~'))[1]
 client = KafkaClient(zookeeper_hosts=zkKafka)

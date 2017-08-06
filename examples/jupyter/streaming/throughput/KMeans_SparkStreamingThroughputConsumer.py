@@ -53,6 +53,8 @@ METABROKER_LIST=",".join(kafka_details[0])
 TOPIC='Throughput'
 NUMBER_EXECUTORS=1
 STREAMING_WINDOW=10
+#SCENARIO="1_Producer_Kmeans"
+SCENARIO="1_Producer_Count"
 #######################################################################################
 
 
@@ -74,10 +76,11 @@ for i in range(int(NUMBER_PARTITIONS)):
     topicPartion = TopicAndPartition(TOPIC, i)
     fromOffset = {topicPartion: long(0)}
 
-
+#######################################################################################
+# Logging
 run_timestamp=datetime.datetime.now()
 RESULT_FILE= "results/spark-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
-SPARK_RESULT_FILE="results/spark-metrics" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
+SPARK_RESULT_FILE="results/spark-metrics-" + run_timestamp.strftime("%Y%m%d-%H%M%S") + ".csv"
 
 try:
     os.makedirs("results")
@@ -86,7 +89,12 @@ except:
 
 output_file=open(RESULT_FILE, "w")
 output_spark_metrics=open(SPARK_RESULT_FILE, "w")
+output_spark_metrics.write("BatchTime, SubmissionTime, SchedulingDelay, TotalDelay, NumberRecords, Scenario\n")
+       
 
+#######################################################################################
+# Spark Helper
+    
 os.environ["SPARK_LOCAL_IP"]=SPARK_LOCAL_IP
 
 pilotcompute_description = {
@@ -131,9 +139,9 @@ def get_streaming_performance_details(app_id, filename):
     df=pd.read_json(response.read())
     df.to_csv(filename)
 
+    
 #######################################################################################
 # Collecting Performance Information about batch throughput
-
 class BatchInfoCollector(StreamingListener):
 
     def __init__(self):
@@ -150,11 +158,10 @@ class BatchInfoCollector(StreamingListener):
 
     def onBatchCompleted(self, batchCompleted):
         info = batchCompleted.batchInfo()
-        submissionTime = datetime.fromtimestamp(info.submissionTime()/1000).isoformat()
+        submissionTime = datetime.datetime.fromtimestamp(info.submissionTime()/1000).isoformat()
         
-        output_spark_metrics.write("BatchTime, SubmissionTime, SchedulingDelay, TotalDelay, NumberRecords\n")
-        output_spark_metrics.write("%s, %d, %d, %d, %d\n"%(str(info.batchTime()), submissionTime, \
-                                                         info.schedulingDelay(), info.totalDelay(), info.numRecords()))
+        output_spark_metrics.write("%s, %s, %d, %d, %d,%s\n"%(str(info.batchTime()), submissionTime, \
+                                                         info.schedulingDelay(), info.totalDelay(), info.numRecords(), SCENARIO))
         output_spark_metrics.flush()
         self.batchInfosCompleted.append(batchCompleted.batchInfo())
 
@@ -218,11 +225,8 @@ def printOffsetRanges(rdd):
         print "%s %s %s %s" % (o.topic, o.partition, o.fromOffset, o.untilOffset)
 
 def count_records(rdd):    
-    print str(type(rdd))
-    if rdd!=None:
-        return rdd.collect()
-    
-    return [0]
+    count = rdd.count()
+    return count
         
 def pre_process(datetime, rdd):  
     #print (str(type(time)) + " " + str(type(rdd)))    
@@ -230,9 +234,9 @@ def pre_process(datetime, rdd):
     points=rdd.map(lambda p: p[1]).flatMap(lambda a: eval(a)).map(lambda a: Vectors.dense(a))
     end_preproc=time.time()
     count = points.count()
-    end_clount = time.time()
+    end_count = time.time()
     output_file.write("Points PreProcess, %d, %d, %s, %.5f\n"%(spark_cores, count, NUMBER_PARTITIONS, end_preproc-start))
-    output_file.write("Points Count, %d, %d, %s, %.5f\n"%(spark_cores, count, NUMBER_PARTITIONS, end_clount-end_preproc))
+    output_file.write("Points Count, %d, %d, %s, %.5f\n"%(spark_cores, count, NUMBER_PARTITIONS, end_count-end_preproc))
     output_file.flush()
     return points
     #points.pprint()
@@ -275,8 +279,8 @@ ssc_end = time.time()
 output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, ssc_end-ssc_start))
 
 #global counts
-#counts=[]
-#kafka_dstream.foreachRDD(lambda t, rdd: counts.append(rdd.count()))
+counts=[]
+kafka_dstream.foreachRDD(lambda t, rdd: counts.append(rdd.count()))
 
 #points = kafka_dstream.transform(pre_process)
 #points.count().pprint()
@@ -295,9 +299,9 @@ output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMB
 #print "Number of Records: %d"%count
 
 
-points = kafka_dstream.transform(pre_process)
+#points = kafka_dstream.transform(pre_process)
 #points.pprint()
-points.foreachRDD(model_update)
+#points.foreachRDD(model_update)
 
 #predictions=model_update(points)
 #predictions.pprint()
