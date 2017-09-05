@@ -1,6 +1,6 @@
 #!/bin/python
 #
-#/home/01131/tg804093/work/spark-2.2.0-bin-hadoop2.7/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --files ../saga_hadoop_utils.py KMeans_SparkStreamingThroughputConsumer.py 
+# /home/01131/tg804093/work/spark-2.2.0-bin-hadoop2.7/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --conf "spark.executor.memory=110g" --files ../saga_hadoop_utils.py KMeans_SparkStreamingThroughputConsumer.py 
 # 
 # With app log:
 #  /home/01131/tg804093/work/spark-2.2.0-bin-hadoop2.7/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.0.2 --conf spark.eventLog.enabled=true --conf "spark.eventLog.dir=file:///work/01131/tg804093/wrangler/spark-logs" --files ../saga_hadoop_utils.py  KMeans_SparkStreamingThroughputConsumer.py
@@ -53,8 +53,8 @@ METABROKER_LIST=",".join(kafka_details[0])
 TOPIC='Throughput'
 NUMBER_EXECUTORS=1
 STREAMING_WINDOW=10
-#SCENARIO="1_Producer_Kmeans"
-SCENARIO="1_Producer_Count"
+SCENARIO="16_Producer_Kmeans"
+#SCENARIO="1_Producer_Count"
 #######################################################################################
 
 
@@ -278,9 +278,29 @@ kafka_dstream = KafkaUtils.createDirectStream(ssc, [TOPIC], {"metadata.broker.li
 ssc_end = time.time()    
 output_file.write("Spark SSC Startup, %d, %d, %s, %.5f\n"%(spark_cores, -1, NUMBER_PARTITIONS, ssc_end-ssc_start))
 
+
+#####################################################################
+# Scenario Count
+
 #global counts
-counts=[]
-kafka_dstream.foreachRDD(lambda t, rdd: counts.append(rdd.count()))
+#counts=[]
+#kafka_dstream.foreachRDD(lambda t, rdd: counts.append(rdd.count()))
+
+
+
+#####################################################################
+# Scenario KMeans
+
+points = kafka_dstream.transform(pre_process)
+#points.pprint()
+points.foreachRDD(model_update)
+
+
+
+
+
+#####################################################################
+# Other
 
 #points = kafka_dstream.transform(pre_process)
 #points.count().pprint()
@@ -299,9 +319,7 @@ kafka_dstream.foreachRDD(lambda t, rdd: counts.append(rdd.count()))
 #print "Number of Records: %d"%count
 
 
-#points = kafka_dstream.transform(pre_process)
-#points.pprint()
-#points.foreachRDD(model_update)
+
 
 #predictions=model_update(points)
 #predictions.pprint()
